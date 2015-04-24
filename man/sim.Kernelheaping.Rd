@@ -4,7 +4,10 @@
 \alias{sim.Kernelheaping}
 \title{Simulation of heaping correction method}
 \usage{
-sim.Kernelheaping(simRuns, n, distribution, rounds, rprobs, ...)
+sim.Kernelheaping(simRuns, n, distribution, rounds, thresholds,
+  downbias = 0.5, setBias = FALSE, Beta = 0, unequal = FALSE,
+  burnin = 5, samples = 10, bw = "nrd0", offset = 0, boundary = FALSE,
+  adjust = 1, ...)
 }
 \arguments{
 \item{simRuns}{number of simulations runs}
@@ -15,9 +18,30 @@ sim.Kernelheaping(simRuns, n, distribution, rounds, rprobs, ...)
 
 \item{rounds}{rounding values}
 
-\item{rprobs}{rounding probabilities (for Beta=0)}
+\item{thresholds}{rounding thresholds (for Beta=0)}
 
-\item{...}{additional attributes handed over to \code{createSim.Kernelheaping} or \code{dheaping}}
+\item{downbias}{Bias parameter used in the simulation}
+
+\item{setBias}{if TRUE a rounding Bias parameter is estimated. For values above 0.5, the respondents
+are more prone to round down, while for values < 0.5 they are more likely to round up}
+
+\item{Beta}{Parameter of the probit model for rounding probabilities used in simulation}
+
+\item{unequal}{if TRUE a probit model is fitted for the rounding probabilities with log(true value) as regressor}
+
+\item{burnin}{burn-in sample size}
+
+\item{samples}{sampling iteration size}
+
+\item{bw}{bandwidth selector method, defaults to "nrd0" see \code{density} for more options}
+
+\item{offset}{location shift parameter used simulation in simulation}
+
+\item{boundary}{TRUE for positive only data (no positive density for negative values)}
+
+\item{adjust}{as in \code{density}, the user can multiply the bandwidth by a certain factor such that bw=adjust*bw}
+
+\item{...}{additional attributes handed over to \code{createSim.Kernelheaping}}
 }
 \value{
 List of estimation results
@@ -27,6 +51,6 @@ Simulation of heaping correction method
 }
 \examples{
 \dontrun{Sims1 <- sim.Kernelheaping(simRuns=2, n=500, distribution="norm",
-rounds=c(1,10,100), rprobs=c(0.3,0.4,0.3), sd=100)}
+rounds=c(1,10,100), thresholds=c(0.3,0.4,0.3), sd=100)}
 }
 

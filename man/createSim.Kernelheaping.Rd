@@ -4,7 +4,7 @@
 \alias{createSim.Kernelheaping}
 \title{Create heaped data for Simulation}
 \usage{
-createSim.Kernelheaping(n, distribution, rounds, rprobs, offset = 0,
+createSim.Kernelheaping(n, distribution, rounds, thresholds, offset = 0,
   downbias = 0.5, Beta = 0, ...)
 }
 \arguments{
@@ -14,7 +14,7 @@ createSim.Kernelheaping(n, distribution, rounds, rprobs, offset = 0,
 
 \item{rounds}{rounding values}
 
-\item{rprobs}{rounding probabilities (for Beta=0)}
+\item{thresholds}{rounding thresholds (for Beta=0)}
 
 \item{offset}{certain value added to all observed random samples}
 

@@ -42,34 +42,35 @@ Kernel density estimation for heaped data
 }
 \examples{
 ###################
+#Real Data Example
+###################
+# Student learning hours per week
+data(students)
+xheaped <- as.numeric(na.omit(students$StudyHrs))
+\dontrun{est <- dheaping(xheaped,rounds=c(1,2,5,10), boundary=TRUE, unequal=TRUE,burnin=20,samples=50)
+plot(est)
+summary(est)}
+
+###################
 #Simulate Data
 ###################
 Sim1 <- createSim.Kernelheaping(n=500, distribution="norm",rounds=c(1,10,100),
-rprobs=c(0.3,0.4,0.3), sd=100)
+thresholds=c(-0.5244005, 0.5244005), sd=100)
 \dontrun{est <- dheaping(Sim1$xheaped,rounds=Sim1$rounds)
 plot(est,trueX=Sim1$x)}
 
 #Biased rounding
 Sim2 <- createSim.Kernelheaping(n=500, distribution="gamma",rounds=c(1,2,5,10),
-                     rprobs=c(0.1,0.15,0.4,0.35),downbias=0.2,shape=4,scale=8,offset=45)
+                     thresholds=c(-1.2815516, -0.6744898, 0.3853205),downbias=0.2,
+                     shape=4,scale=8,offset=45)
 \dontrun{est <- dheaping(Sim2$xheaped, rounds=Sim2$rounds, setBias=T, bw="SJ")
 plot(est, trueX=Sim2$x)
 summary(est)
 tracePlots(est)}
 
 Sim3 <- createSim.Kernelheaping(n=500, distribution="gamma",rounds=c(1,2,5,10),
-rprobs=c(0.8,0.1,0.05,0.05), downbias=0.75, Beta=-1, shape=4, scale=8)
+thresholds=c(0.8416212, 1.2815516, 1.6448536), downbias=0.75, Beta=-1, shape=4, scale=8)
 \dontrun{est <- dheaping(Sim3$xheaped,rounds=Sim3$rounds,boundary=TRUE,unequal=TRUE,setBias=T)
 plot(est,trueX=Sim3$x)}
-
-###################
-#Real Data Example
-###################
-# Student learning hours per week
-data(students)
-xheaped <- as.numeric(na.omit(students$StudyHrs))
-\dontrun{est <- dheaping(xheaped,rounds=c(1,2,5,10), boundary=TRUE, unequal=TRUE)
-plot(est)
-summary(est)}
 }
 

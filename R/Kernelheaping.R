@@ -11,5 +11,5 @@
 #' The most important function is \code{\link{dheaping}}. See the help and the attached examples on how to use the package.
 #' @docType package
 #' @name Kernelheaping
-#' @import MASS evmix plyr
+#' @import MASS evmix plyr corpcor
 NULL
