@@ -1,18 +1,17 @@
 Package: Kernelheaping
 Type: Package
-Title: Kernel Density Estimation for Heaped Data
-Version: 0.5
-Date: 2015-04-24
-Depends: R (>= 2.15.0), plyr, evmix, MASS, corpcor
+Title: Kernel Density Estimation for Heaped and Rounded Data
+Version: 0.9
+Date: 2015-06-12
+Depends: R (>= 2.15.0), plyr, evmix, MASS, ks, sparr
 Author: Marcus Gross
 Maintainer: Marcus Gross <marcus.gross@fu-berlin.de>
-Description: In self-reported data the user often encounters heaped data, i.e. data which are rounded to a different
- degree of coarseness. While this is mostly a minor problem in parametric density estimation the bias can be very large
+Description: In self-reported or anonymized data the user often encounters heaped data, i.e. data which are rounded (to a possibly different
+ degree of coarseness). While this is mostly a minor problem in parametric density estimation the bias can be very large
  for non-parametric methods such as kernel density estimation. This package implements a partly Bayesian algorithm treating the true unknown values as additional
- parameters and estimates the rounding parameters to give a corrected kernel density estimate. It supports various standard bandwidth selection methods.
- Additionally varying rounding probabilities (with the true value) and asymmetric rounding is estimable as well.
+ parameters and estimates the rounding parameters to give a corrected kernel density estimate. It supports various standard bandwidth selection methods. Varying rounding probabilities (depending on the true value) and asymmetric rounding is estimable as well. Additionally, bivariate non-parametric density estimation for rounded data is supported.
 License: GPL-2 | GPL-3
-Packaged: 2015-04-24 10:19:42 UTC; marcusgross
 NeedsCompilation: no
+Packaged: 2015-06-12 14:42:15 UTC; marcusgross
 Repository: CRAN
-Date/Publication: 2015-04-27 13:42:48
+Date/Publication: 2015-06-13 01:30:50
