@@ -44,9 +44,16 @@ The function returns a list object with the following objects (besides all input
 Kernel density estimation for heaped data
 }
 \examples{
-###################
-#Real Data Example
-###################
+#Simple Rounding   ----------------------------------------------------------
+xtrue=rnorm(3000)
+xrounded=round(xtrue)
+est <- dheaping(xrounded,rounds=1,burnin=20,samples=50)
+plot(est,trueX=xtrue)
+
+#####################
+#####Heaping
+#####################
+#Real Data Example  ----------------------------------------------------------
 # Student learning hours per week
 data(students)
 xheaped <- as.numeric(na.omit(students$StudyHrs))
@@ -54,9 +61,7 @@ xheaped <- as.numeric(na.omit(students$StudyHrs))
 plot(est)
 summary(est)}
 
-###################
-#Simulate Data
-###################
+#Simulate Data   ----------------------------------------------------------
 Sim1 <- createSim.Kernelheaping(n=500, distribution="norm",rounds=c(1,10,100),
 thresholds=c(-0.5244005, 0.5244005), sd=100)
 \dontrun{est <- dheaping(Sim1$xheaped,rounds=Sim1$rounds)

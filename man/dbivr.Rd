@@ -7,9 +7,9 @@
 dbivr(xrounded, roundvalue, burnin = 2, samples = 5, adaptive = FALSE)
 }
 \arguments{
-\item{xrounded}{rounded values from which to estimate bivariate density, matrix with 2 columns(x,y)}
+\item{xrounded}{rounded values from which to estimate bivariate density, matrix with 2 columns (x,y)}
 
-\item{roundvalue}{rounding value (length of interval in that the true value lies around the rounded one)}
+\item{roundvalue}{rounding value (side length of square in that the true value lies around the rounded one)}
 
 \item{burnin}{burn-in sample size}
 
@@ -24,6 +24,7 @@ The function returns a list object with the following objects (besides all input
 \item{\code{gridy}}{Vector Grid on which density is evaluated (y)}
 \item{\code{resultDensity}}{Array with Estimated Density for each iteration}
 \item{\code{resultX}}{Matrix of true latent values X estimates}
+\item{\code{delaigle}}{Matrix of Delaigle estimator estimates}
 }
 \description{
 Bivariate kernel density estimation for rounded data
@@ -50,8 +51,8 @@ plot(est,trueX=xtrue)
 #for comparison: plot true density
  dens=dmvnorm.mixt(x=expand.grid(est$Mestimates$eval.points[[1]],est$Mestimates$eval.points[[2]]),
   mus=mus, Sigmas=Sigmas, props=props)
-est$Mestimates$estimate=matrix(dens,nrow=length(est$gridx),ncol=length(est$gridy))
-plot(est$Mestimates,display="filled.contour2",
+ dens=matrix(dens,nrow=length(est$gridx),ncol=length(est$gridy))
+ contour(dens,x=est$Mestimates$eval.points[[1]],y=est$Mestimates$eval.points[[2]],
     xlim=c(min(est$gridx),max(est$gridx)),ylim=c(min(est$gridy),max(est$gridy)),main="True Density")}
 }
 

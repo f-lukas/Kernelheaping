@@ -36,18 +36,11 @@ logLik=function(par, new, rguesstemp, unequal, setBias, rounds,ranefvalues, post
   beta=0
   if(setBias==TRUE) {Bias=par[length(rounds)]}
   if(unequal==TRUE) {beta=par[length(par)]}
-  #select rguesstemp[x]-th row of x-th columns for x in 1:nrow(rguesstemp)
-  #   pgivenX=Rprx(rounds=rounds,RR=RR, Bias=pnorm(Bias), beta=beta, gridx=new, postMatrix=postMatrix)
-  #   return(-sum(log(pgivenX[cumsum(rep(nrow(pgivenX),length.out=ncol(pgivenX)))-nrow(pgivenX)+rguesstemp])))
-  #   
-  #   
   pgivenX=Rprx(rounds=rounds,RR=RR, Bias=pnorm(Bias), beta=beta, gridx=unique(new), ranefvalues=ranefvalues,
                postMatrix=postMatrix)
   return(-sum(log(pgivenX[
     cumsum(rep(nrow(pgivenX),length.out=length(new)))-cumsum(((sequence(rle(new)$length)>1)*nrow(pgivenX)))-
-      nrow(pgivenX)+rguesstemp]))
-    #Priors for stabilizing estimates
-    -sum(log(dnorm(RR,mean=0,sd=10)))-log(dnorm(beta,mean=0,sd=10))-log(dnorm(pnorm(Bias),mean=0,sd=10)))
+      nrow(pgivenX)+rguesstemp])))
 }
 
 logLikRandomGamma=function(ranefvalues, RR, Bias, beta, new, rguesstemp, rounds, tau, postMatrix){
@@ -80,9 +73,16 @@ logLikRandomGamma=function(ranefvalues, RR, Bias, beta, new, rguesstemp, rounds,
 #' \item{\code{resultBeta}}{Vector with estimated Beta parameter for each iteration}
 #' \item{\code{resultX}}{Matrix of true latent values X estimates}
 #' @examples
-#' ###################
-#' #Real Data Example
-#' ###################
+#' #Simple Rounding   ----------------------------------------------------------
+#' xtrue=rnorm(3000)
+#' xrounded=round(xtrue)
+#' est <- dheaping(xrounded,rounds=1,burnin=20,samples=50)
+#' plot(est,trueX=xtrue)
+#' 
+#' #####################
+#' #####Heaping
+#' #####################
+#' #Real Data Example  ----------------------------------------------------------
 #' # Student learning hours per week
 #' data(students)
 #' xheaped <- as.numeric(na.omit(students$StudyHrs))
@@ -90,9 +90,7 @@ logLikRandomGamma=function(ranefvalues, RR, Bias, beta, new, rguesstemp, rounds,
 #' plot(est)
 #' summary(est)}
 #' 
-#' ###################
-#' #Simulate Data
-#' ###################
+#' #Simulate Data   ----------------------------------------------------------
 #' Sim1 <- createSim.Kernelheaping(n=500, distribution="norm",rounds=c(1,10,100),
 #' thresholds=c(-0.5244005, 0.5244005), sd=100)
 #' \dontrun{est <- dheaping(Sim1$xheaped,rounds=Sim1$rounds)
@@ -111,7 +109,10 @@ logLikRandomGamma=function(ranefvalues, RR, Bias, beta, new, rguesstemp, rounds,
 #' thresholds=c(0.8416212, 1.2815516, 1.6448536), downbias=0.75, Beta=-1, shape=4, scale=8)
 #' \dontrun{est <- dheaping(Sim3$xheaped,rounds=Sim3$rounds,boundary=TRUE,unequal=TRUE,setBias=T)
 #' plot(est,trueX=Sim3$x)}
-#' @export
+#' @importFrom stats aggregate density dnorm na.omit optim pnorm qnorm quantile rgamma rnorm runif
+#' @importFrom grDevices rainbow
+#' @importFrom graphics box contour image legend lines par plot
+#' @export 
 dheaping <- function(xheaped, rounds, burnin=5, samples=10, setBias=FALSE,
                      bw= "nrd0", boundary=FALSE, unequal=FALSE, random=FALSE, adjust=1){
   xheaped=na.omit(plyr::round_any(sort(xheaped),accuracy=min(rounds))) #round to lowest rounding value and sort
@@ -255,7 +256,6 @@ plot.Kernelheaping <- function(x,trueX=NULL, ...){
     if(!is.null(trueX)){lines(dbckden(x$gridx,trueX,bw=density(trueX,bw=x$bw,adjust=x$adjust)$bw,bcmethod="simple")~x$gridx,col="blue",lty=2,lwd=2)}
   }
   lines(x$meanPostDensity~x$gridx,col="red",lty=4,lwd=2)
-  if(!is.null(trueX)){lines(density(trueX),col="blue")}
   if(is.null(trueX)){legend("topright",c("Naive","Corrected"),col=c("black","red"),lty=c(1,4,2))}
   if(!is.null(trueX)){legend("topright",c("Naive","Corrected","Oracle"),col=c("black","red","blue"),lty=c(1,4,2),lwd=c(1,2,2))}
 }
@@ -311,7 +311,7 @@ tracePlots <- function(x, ...){
 #' @param n sample size
 #' @param distribution name of the distribution where random sampling is available, e.g. "norm"
 #' @param rounds rounding values, numeric vector of length >=1
-#' @param thresholds rounding thresholds (for Beta=0)
+#' @param thresholds rounding thresholds
 #' @param burnin burn-in sample size
 #' @param samples sampling iteration size
 #' @param downbias Bias parameter used in the simulation
@@ -397,8 +397,8 @@ createSim.Kernelheaping <- function(n, distribution, rounds, thresholds, offset=
   return(list(xheaped=xheaped, rounds=rounds, thresholds=thresholds, downbias=downbias, Beta=Beta, x=xtrue))
 }
 #' Bivariate kernel density estimation for rounded data
-#' @param xrounded rounded values from which to estimate bivariate density, matrix with 2 columns(x,y) 
-#' @param roundvalue rounding value (length of interval in that the true value lies around the rounded one)
+#' @param xrounded rounded values from which to estimate bivariate density, matrix with 2 columns (x,y) 
+#' @param roundvalue rounding value (side length of square in that the true value lies around the rounded one)
 #' @param burnin burn-in sample size
 #' @param samples sampling iteration size
 #' @param adaptive set to TRUE for adaptive bandwidth
@@ -409,6 +409,7 @@ createSim.Kernelheaping <- function(n, distribution, rounds, thresholds, offset=
 #' \item{\code{gridy}}{Vector Grid on which density is evaluated (y)}
 #' \item{\code{resultDensity}}{Array with Estimated Density for each iteration}
 #' \item{\code{resultX}}{Matrix of true latent values X estimates}
+#' \item{\code{delaigle}}{Matrix of Delaigle estimator estimates}
 #' @examples
 #' # Create Mu and Sigma  -----------------------------------------------------------
 #' mu1 <- c(0, 0)
@@ -431,37 +432,18 @@ createSim.Kernelheaping <- function(n, distribution, rounds, thresholds, offset=
 #' #for comparison: plot true density
 #'  dens=dmvnorm.mixt(x=expand.grid(est$Mestimates$eval.points[[1]],est$Mestimates$eval.points[[2]]),
 #'   mus=mus, Sigmas=Sigmas, props=props)
-#' est$Mestimates$estimate=matrix(dens,nrow=length(est$gridx),ncol=length(est$gridy))
-#'plot(est$Mestimates,display="filled.contour2",
+#'  dens=matrix(dens,nrow=length(est$gridx),ncol=length(est$gridy))
+#'  contour(dens,x=est$Mestimates$eval.points[[1]],y=est$Mestimates$eval.points[[2]],
 #'     xlim=c(min(est$gridx),max(est$gridx)),ylim=c(min(est$gridy),max(est$gridy)),main="True Density")}
 #'@export
 dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
-  #Create grid
-  stepsize=1/2^(which(max(diff(range(xrounded[,1])),diff(range(xrounded[,2])))/min(roundvalue)*2^(1:10)>100)[1]) #at least 100 grid points
-  #   gridx=seq(min(xrounded[,1])-max(roundvalue)*0.5+stepsize/2*min(roundvalue),
-  #             max(xrounded[,1])+max(roundvalue)*0.5-stepsize/2*min(roundvalue),
-  #             by=min(roundvalue)*stepsize)
-  #   gridy=seq(min(xrounded[,2])-max(roundvalue)*0.5+stepsize/2*min(roundvalue),
-  #             max(xrounded[,2])+max(roundvalue)*0.5-stepsize/2*min(roundvalue),
-  #             by=min(roundvalue)*stepsize)
-  #sparr package requires identical grid length on both axis:
-  #  if(adaptive==TRUE){
-  gridx=seq(min(xrounded[,1])-max(roundvalue)*0.5+stepsize/2*min(roundvalue),
-            max(xrounded[,1])+max(roundvalue)*0.5-stepsize/2*min(roundvalue),
-            length=100)
-  gridy=seq(min(xrounded[,2])-max(roundvalue)*0.5+stepsize/2*min(roundvalue),
-            max(xrounded[,2])+max(roundvalue)*0.5-stepsize/2*min(roundvalue),
-            length=100)
-  #  }
-  
+  #Create grid - sparr package requires identical grid length on both axis:
+  gridx=seq(min(xrounded[,1])-roundvalue,max(xrounded[,1])+roundvalue,length=100)
+  gridy=seq(min(xrounded[,2])-roundvalue,max(xrounded[,2])+roundvalue,length=100)
+
   #Pilot Estimation
-  Mestimates <- ks::kde(x=xrounded, H=diag(c(roundvalue,roundvalue)),gridsize=c(length(gridx),length(gridy)),
+  Mestimates <- ks::kde(x=xrounded, H=diag(2*c(roundvalue,roundvalue)),gridsize=c(length(gridx),length(gridy)),
                         xmin=c(min(gridx),min(gridy)),xmax=c(max(gridx),max(gridy)))
-  if(adaptive==TRUE){
-    MestimatesAd <- sparr::bivariate.density(data=xrounded,pilotH=sqrt(roundvalue),res=length(gridx),
-                                             xrange=range(gridx),yrange=range(gridy),adaptive=TRUE,comment=FALSE)
-    Mestimates$estimate=MestimatesAd$Zm
-  }
   
   #Result matrices
   resultDensity=array(dim=c(burnin+samples,length(gridx),length(gridy)))
@@ -469,12 +451,22 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
   
   rvalues=unique(xrounded) #unique rounded values in data
   selectionGrid<-lapply(1:nrow(rvalues),function(k){
-    selectionX=which(Mestimates$eval.points[[1]]>rvalues[k,1]-roundvalue*0.5&Mestimates$eval.points[[1]]<rvalues[k,1]+roundvalue*0.5)
-    selectionY=which(Mestimates$eval.points[[2]]>rvalues[k,2]-roundvalue*0.5&Mestimates$eval.points[[2]]<rvalues[k,2]+roundvalue*0.5)
+    selectionX=which(Mestimates$eval.points[[1]]>=rvalues[k,1]-roundvalue*0.5&Mestimates$eval.points[[1]]<rvalues[k,1]+roundvalue*0.5)
+    selectionY=which(Mestimates$eval.points[[2]]>=rvalues[k,2]-roundvalue*0.5&Mestimates$eval.points[[2]]<rvalues[k,2]+roundvalue*0.5)
     list(selectionX,selectionY)
   })
   
   
+  #Delaigle Estimator
+  delaigle=aggregate(list(length=rep(1,nrow(xrounded))), data.frame(xrounded), length)
+  delaigle[,3]=delaigle[,3]/sum(delaigle[,3])/roundvalue^2
+  delaigleest=matrix(0,nrow=length(gridx),ncol=length(gridy))
+  for(i in 1:nrow(delaigle)){
+    x=which(delaigle[i,1]==rvalues[,1]&delaigle[i,2]==rvalues[,2])
+    delaigleest[selectionGrid[[x]][[1]],selectionGrid[[x]][[2]]]=delaigle[i,3]
+  }
+  
+  #SEM Estimator
   for(j in 1:(burnin+samples)){
     new=c()
     for(i in 1:nrow(rvalues)){
@@ -486,12 +478,18 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
       npoints=length(which(xrounded[,1]==rvalues[i,1]&xrounded[,2]==rvalues[i,2]))
       new=rbind(new,points[sample(1:nrow(points),size=npoints,replace=T,prob=probs),])
     }
+    #We have a limited number of evaluation points, add, as an approximation, a uniform distribution
+    #(with to the evaluation grid size) to sample points (new) in order to save computation time
+    
+    new=new+cbind(runif(nrow(new),-0.5*(gridx[2]-gridx[1]),0.5*(gridx[2]-gridx[1])),
+                  runif(nrow(new),-0.5*(gridy[2]-gridy[1]),0.5*(gridy[2]-gridy[1])))
+    
     #recompute H
     if(adaptive==FALSE){
-      H <- ks::Hpi(x = new)
+      H <- ks::Hpi(x = new, binned=TRUE)
     }
     if(adaptive==TRUE){
-      H <- ks::hpi(x = new)
+      H <- ks::hpi(x = new, binned=TRUE)
     }
     #recompute density
     if(adaptive==FALSE){
@@ -502,6 +500,7 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
       MestimatesAd <- sparr::bivariate.density(data=new,pilotH=H,res=length(gridx),xrange=range(gridx),
                                                yrange=range(gridy),adaptive=TRUE,comment=FALSE)
       Mestimates$estimate=MestimatesAd$Zm
+      Mestimates$estimate[is.na(Mestimates$estimate)]=1E-16
     }
     resultDensity[j,,]=Mestimates$estimate
     resultX[j,]=new
@@ -510,7 +509,7 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
   Mestimates$estimate=apply(resultDensity[-c(1:burnin),,],c(2,3),mean)
   est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
             xrounded=xrounded, gridx=gridx, gridy=gridy, roundvalue=roundvalue,
-            burnin=burnin, samples=samples, adaptive=adaptive)
+            burnin=burnin, samples=samples, adaptive=adaptive, delaigle=delaigleest)
   class(est) <- "bivrounding"
   return(est)
 }
@@ -523,35 +522,40 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
 #' @export
 plot.bivrounding <- function(x, trueX=NULL, ...){
   par(mfrow=c(2,2))
-  #   if(!is.null(trueX)){
-  #     par(mfrow=c(1,3))
-  #   }
-  plot(x$Mestimates,display="filled.contour2",
-       xlim=c(min(x$gridx),max(x$gridx)),ylim=c(min(x$gridy),max(x$gridy)),main="Corrected")
+
+  #select Levels
   if(x$adaptive==FALSE){
-    plot(kde(x$xrounded),display="filled.contour2",
-         xlim=c(min(x$gridx),max(x$gridx)),ylim=c(min(x$gridy),max(x$gridy)),main="Naive")
-    if(!is.null(trueX)){
-      plot(kde(trueX),display="filled.contour2",
-           xlim=c(min(x$gridx),max(x$gridx)),ylim=c(min(x$gridy),max(x$gridy)),main="Oracle")
-    }
+  Naive=kde(x$xrounded,gridsize=c(length(x$gridx),length(x$gridy)),
+            xmin=c(min(x$gridx),min(x$gridy)),xmax=c(max(x$gridx),max(x$gridy)))
+  contour(x$Mestimates$estimate,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+                  col=c("white",rainbow(6,start=0.5,end=0.6)),main="Corrected")
+  contour(Naive$estimate,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+                  col=c("white",rainbow(6,start=0.5,end=0.6)),main="Naive")
+  if(!is.null(trueX)){
+  Oracle=kde(trueX,gridsize=c(length(x$gridx),length(x$gridy)),
+             xmin=c(min(x$gridx),min(x$gridy)),xmax=c(max(x$gridx),max(x$gridy)))
+  contour(Oracle$estimate,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+                  col=c("white",rainbow(6,start=0.5,end=0.6)),main="Oracle")
   }
+  }
+  
   if(x$adaptive==TRUE){
-    H <- ks::hpi(x = x$xrounded)
-    MestimatesAdNaive=sparr::bivariate.density(data=x$xrounded,pilotH=H,res=length(x$gridx),xrange=range(x$gridx),
+  Naive=sparr::bivariate.density(data=x$xrounded,pilotH=ks::hpi(x = x$xrounded,binned=TRUE),res=length(x$gridx),xrange=range(x$gridx),
                                                yrange=range(x$gridy),adaptive=TRUE,comment=FALSE)
-    x$Mestimates$estimate=MestimatesAdNaive$Zm
-    plot(x$Mestimates,display="filled.contour2",
-         xlim=c(min(x$gridx),max(x$gridx)),ylim=c(min(x$gridy),max(x$gridy)),main="Naive")
-    
-    if(!is.null(trueX)){
-      H <- ks::hpi(x = trueX)
-      MestimatesAdOracle=sparr::bivariate.density(data=trueX,pilotH=H,res=length(x$gridx),xrange=range(x$gridx),
-                                                  yrange=range(x$gridy),adaptive=TRUE,comment=FALSE)
-      x$Mestimates$estimate=MestimatesAdOracle$Zm
-      plot(x$Mestimates,display="filled.contour2",
-           xlim=c(min(x$gridx),max(x$gridx)),ylim=c(min(x$gridy),max(x$gridy)),main="Oracle")
-    }
+  contour(x$Mestimates$estimate,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+          col=c("white",rainbow(6,start=0.5,end=0.6)),main="Corrected")
+  contour(Naive$Zm,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+          col=c("white",rainbow(6,start=0.5,end=0.6)),main="Naive")
+  if(!is.null(trueX)){
+  Oracle=sparr::bivariate.density(data=trueX,pilotH=ks::hpi(x = trueX),res=length(x$gridx),xrange=range(x$gridx),
+                                  yrange=range(x$gridy),adaptive=TRUE,comment=FALSE)
+  contour(Oracle$Zm,x=x$Mestimates$eval.points[[1]],y=x$Mestimates$eval.points[[2]],
+          col=c("white",rainbow(6,start=0.5,end=0.6)),main="Oracle")
   }
+  }
+  
+  image(x$delaigle,oldstyle=TRUE,x=x$Mestimates$eval.points[[1]],xlab="",ylab="",
+        y=x$Mestimates$eval.points[[2]],col=c("white",rainbow(6,start=0.5,end=0.6)),main="Delaigle")
+  box()
   par(mfrow=c(1,1))
 }

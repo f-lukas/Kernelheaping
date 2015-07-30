@@ -18,7 +18,7 @@ sim.Kernelheaping(simRuns, n, distribution, rounds, thresholds,
 
 \item{rounds}{rounding values, numeric vector of length >=1}
 
-\item{thresholds}{rounding thresholds (for Beta=0)}
+\item{thresholds}{rounding thresholds}
 
 \item{downbias}{Bias parameter used in the simulation}
 
