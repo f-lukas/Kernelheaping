@@ -1,6 +1,7 @@
 #' @importFrom grDevices rainbow
 #' @importFrom graphics box contour image legend lines par plot
 #' @importFrom stats aggregate density dnorm optim pnorm qnorm quantile rgamma runif rnorm
+#' @importFrom sp point.in.polygon
 Rprx=function(rounds, Bias, RR, beta, gridx, ranefvalues, roundvalues){
   rprobs=rprobsRR2(RR,beta,gridx,ranefvalues)
   postMatrix=matrix(0,ncol=ncol(rprobs),nrow=2*nrow(rprobs))
@@ -282,6 +283,7 @@ dheaping <- function(xheaped, rounds, burnin=5, samples=10, setBias=FALSE, weigh
 #' @param trueX optional, if true values X are known (in simulations, for example) the 'Oracle' density estimate is added as well
 #' @param ... additional arguments given to standard plot function
 #' @return plot with Kernel density estimates (Naive, Corrected and True (if provided))
+#' @method plot Kernelheaping
 #' @export
 plot.Kernelheaping <- function(x,trueX=NULL, ...){
   if(x$boundary==FALSE){
@@ -301,7 +303,7 @@ plot.Kernelheaping <- function(x,trueX=NULL, ...){
 #' @param object Kernelheaping object produced by \code{dheaping} function
 #' @param ... unused
 #' @return Prints summary statistics
-#' @export
+#' @method summary Kernelheaping
 summary.Kernelheaping <- function(object, ...){
   Threshold=c(-Inf,colMeans(object$resultRR[-c(1:object$burnin),]))
   names(Threshold)=object$rounds
@@ -556,7 +558,7 @@ dbivr <- function(xrounded, roundvalue, burnin=2, samples=5, adaptive=FALSE){
 #' @param trueX optional, if true values X are known (in simulations, for example) the 'Oracle' density estimate is added as well
 #' @param ... additional arguments given to standard plot function
 #' @return plot with Kernel density estimates (Naive, Corrected and True (if provided))
-#' @export
+#' @method plot bivrounding
 plot.bivrounding <- function(x, trueX=NULL, ...){
   par(mfrow=c(2,2))
   
@@ -658,4 +660,172 @@ getNewV <- function(heapedvalues, selectionGrid, Mestimates, Rprs1, Rprs2, xtabl
       rguesstemp[xheapedOriginal%%min(roundvalues[roundvalues>0])==0&rguesstemp %in% c(1,length(roundvalues)+1)]+1
   }
   return(list(new,rguesstemp))
+}
+
+#' Kernel density estimation for classified data
+#' @param xclass classified values; factor with ordered factor values
+#' @param classes numeric vector of classes; Inf as last value is allowed
+#' @param burnin burn-in sample size
+#' @param samples sampling iteration size
+#' @param boundary TRUE for positive only data (no positive density for negative values)
+#' @param bw bandwidth selector method, defaults to "nrd0" see \code{density} for more options  
+#' @param evalpoints number of evaluation grid points
+#' @param adjust as in \code{density}, the user can multiply the bandwidth by a certain factor such that bw=adjust*bw
+#' @return
+#' The function returns a list object with the following objects (besides all input objects):
+#' \item{\code{Mestimates}}{kde object containing the corrected density estimate}
+#' \item{\code{gridx}}{Vector Grid on which density is evaluated}
+#' \item{\code{resultDensity}}{Matrix with Estimated Density for each iteration}
+#' \item{\code{resultX}}{Matrix of true latent values X estimates}
+#' @examples
+#' x=rlnorm(500, meanlog = 8, sdlog = 1)
+#' classes <- c(0,500,1000,1500,2000,2500,3000,4000,5000,6000,8000,10000,15000,Inf)
+#' xclass <- cut(x,breaks=classes)
+#' densityEst <- dclass(xclass=xclass, classes=classes, burnin=2, samples=5, evalpoints=1000)
+#' hist(densityEst$xclass,breaks=densityEst$classes)
+#' lines(densityEst$Mestimates~densityEst$gridx,col="purple",lwd=2)
+#' @export 
+dclass <- function(xclass, classes, burnin=2, samples=5, boundary=FALSE, bw="nrd0",
+                   evalpoints=200, adjust=1){
+  if(max(classes)==Inf){classes[length(classes)]=3*classes[length(classes)-1]}
+  classmeans <- sapply(1:(length(classes)-1), function(x) 1/2*(classes[x+1]+classes[x]))
+  levels(xclass) <- classmeans
+  lengths=as.vector(table(xclass))
+  
+  xclass <- as.numeric(as.character(xclass))
+  #Create grid - sparr package requires identical grid length on both axis:
+  gridx=seq(min(classes),max(classes),length=evalpoints)
+  #Pilot Estimation
+  if(boundary==FALSE){Mestimates <- density(xclass,from=min(gridx),to=max(gridx),n=length(gridx),bw=2*max(classes)/length(classes))$y}
+  if(boundary==TRUE){Mestimates <- evmix::dbckden(gridx,xclass,bw=2*max(classes)/length(classes),bcmethod="simple")}
+  
+  #Result matrices
+  resultDensity=matrix(ncol=c(burnin+samples),nrow=length(gridx))
+  resultX=matrix(ncol=c(burnin+samples),nrow=length(xclass))
+  
+  selectionGrid<-lapply(1:(length(classes)-1),function(k){
+    selection=which(gridx>=classes[k]&gridx<classes[k+1])
+    selection})
+  #SEM Estimator
+  for(j in 1:(burnin+samples)){
+    new=c()
+    for(i in 1:(length(classes)-1)){
+      probs=as.vector(Mestimates[selectionGrid[[i]]])
+      points=gridx[selectionGrid[[i]]]
+      npoints=lengths[i]
+      new=c(new,points[sample(1:length(points),size=npoints,replace=T,prob=probs)])
+    }
+    NewDensity <- density(new,from=min(gridx),to=max(gridx),n=length(gridx),bw=bw,adjust=adjust,kernel="optcosine")
+    Mestimates <- NewDensity$y
+    if(boundary==TRUE){Mestimates <- evmix::dbckden(gridx,new,bw=NewDensity$bw,bcmethod="simple")}
+    resultDensity[,j]=Mestimates
+    resultX[,j]=new
+    print(paste("Iteration:",j,"of", burnin+samples))
+  }
+  Mestimates=apply(resultDensity[,-c(1:burnin)],c(1),mean)
+  est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
+            xclass=xclass, gridx=gridx, classes=classes,
+            burnin=burnin, samples=samples)
+  class(est) <- "classDensity"
+  return(est)
+}
+
+#' Bivariate Kernel density estimation for data classified in polygons or shapes
+#' @param data matrix with at least 3 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area Optional fourth column: ID-Variable if area consists of more than 1 polygon
+#' @param burnin burn-in sample size
+#' @param samples sampling iteration size
+#' @param adaptive TRUE for adaptive kernel density estimation
+#' @param shapefile shapefile with number of polygons equal to nrow(data)
+#' @param gridsize number of evaluation grid points
+#' @return
+#' The function returns a list object with the following objects (besides all input objects):
+#' \item{\code{Mestimates}}{kde object containing the corrected density estimate}
+#' \item{\code{gridx}}{Vector Grid of x-coordinates on which density is evaluated}
+#' \item{\code{gridy}}{Vector Grid of y-coordinates on which density is evaluated}
+#' \item{\code{resultDensity}}{Matrix with Estimated Density for each iteration}
+#' \item{\code{resultX}}{Matrix of true latent values X estimates}
+#' @export 
+dshapebivr <- function(data, burnin=2, samples=5, adaptive=FALSE, shapefile, gridsize=200){
+  ###########################################################
+  ##### get polygon shape coordinates from data #####
+  ###########################################################
+  pol.x <- list()
+  pol.y <- list()
+  for (i in 1:length(shapefile@polygons)) {
+    pol.x[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,1]
+    pol.y[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,2]
+  }
+  if(ncol(data)==3){           # Create ID Variable if not present
+    data[,4] <- 1:nrow(data)
+  }
+  
+  npoints <- data[!(duplicated(data[,4])),3] #delete duplicated points
+  
+  #Create grid - sparr package requires identical grid length on both axis:
+  gridx=seq(shapefile@bbox[1,1],shapefile@bbox[1,2],length=gridsize)
+  gridy=seq(shapefile@bbox[2,1],shapefile@bbox[2,2],length=gridsize)
+  grid <- as.matrix(expand.grid(gridx,gridy))
+  
+  #Pilot Estimation
+  Mestimates <- ks::kde(x=data[,c(1,2)], H=diag(c(diff(shapefile@bbox[1,])/sqrt(length(shapefile@polygons)),
+                                                  c(diff(shapefile@bbox[2,])/sqrt(length(shapefile@polygons)))))^2,
+                        gridsize=c(gridsize,gridsize),
+                        xmin=c(min(gridx),min(gridy)),
+                        xmax=c(max(gridx),max(gridy)),w=nrow(data)*data[,3]/sum(data[,3]))
+  #Result matrices
+  resultDensity=array(dim=c(burnin+samples,length(gridx),length(gridy)))
+  resultX=array(dim=c(samples+burnin,sum(npoints),2))
+  
+  selectionGrid <- lapply(1:length(unique(data[,4])),function(i){
+    y=which(data[,4]==unique(data[,4])[i])
+    as.vector(unlist(sapply(y,function(y) which(point.in.polygon(grid[,1],grid[,2],pol.x[[y]],pol.y[[y]])==1))))
+  })
+  
+  #SEM Estimator
+  for(j in 1:(burnin+samples)){
+    new=c()
+    for(i in 1:length(selectionGrid)){
+      probs=Mestimates$estimate[cbind(match(grid[selectionGrid[[i]],1],Mestimates$eval.points[[1]]),
+                                      match(grid[selectionGrid[[i]],2],Mestimates$eval.points[[2]]))]+1E-10
+      points=matrix(ncol=2,grid[selectionGrid[[i]],])
+      if(length(selectionGrid[[i]])==0){points <- matrix(ncol=2,shapefile@polygons[[i]]@labpt)
+      probs=1}
+      if(npoints[i]>0){
+        new=rbind(new,points[sample(1:nrow(points),size=max(0,npoints[i],na.rm=T),replace=T,prob=probs),])
+      }
+    }
+    #We have a limited number of evaluation points, add, as an approximation, a uniform distribution
+    #(with to the evaluation grid size) to sample points (new) in order to save computation time
+    
+    new=new+cbind(runif(nrow(new),-0.5*(gridx[2]-gridx[1]),0.5*(gridx[2]-gridx[1])),
+                  runif(nrow(new),-0.5*(gridy[2]-gridy[1]),0.5*(gridy[2]-gridy[1])))
+    
+    #recompute H
+    if(adaptive==FALSE){
+      H <- ks::Hpi(x = new, binned=TRUE)
+    }
+    if(adaptive==TRUE){
+      H <- ks::hpi(x = new, binned=TRUE)
+    }
+    #recompute density
+    if(adaptive==FALSE){
+      Mestimates <- ks::kde(x=new, H=H,gridsize=c(length(gridx),length(gridy)),bgridsize=c(length(gridx),length(gridy)),
+                            xmin=c(min(gridx),min(gridy)),xmax=c(max(gridx),max(gridy)),binned=TRUE)
+    }
+    if(adaptive==TRUE){
+      MestimatesAd <- sparr::bivariate.density(data=new,pilotH=H,res=length(gridx),xrange=range(gridx),
+                                               yrange=range(gridy),adaptive=TRUE,comment=FALSE)
+      Mestimates$estimate=MestimatesAd$Zm
+      Mestimates$estimate[is.na(Mestimates$estimate)]=1E-96
+    }
+    resultDensity[j,,] <- Mestimates$estimate
+    resultX[j,,] <- new
+    print(paste("Iteration:",j,"of", burnin+samples))
+  }
+  Mestimates$estimate=apply(resultDensity[-c(1:burnin),,],c(2,3),mean)
+  est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
+            data=data, gridx=gridx, gridy=gridy, shapefile=shapefile,
+            burnin=burnin, samples=samples, adaptive=adaptive)
+  class(est) <- "bivshape"
+  return(est)
 }
