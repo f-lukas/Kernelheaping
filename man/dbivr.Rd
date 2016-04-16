@@ -4,7 +4,8 @@
 \alias{dbivr}
 \title{Bivariate kernel density estimation for rounded data}
 \usage{
-dbivr(xrounded, roundvalue, burnin = 2, samples = 5, adaptive = FALSE)
+dbivr(xrounded, roundvalue, burnin = 2, samples = 5, adaptive = FALSE,
+  gridsize = 1000)
 }
 \arguments{
 \item{xrounded}{rounded values from which to estimate bivariate density, matrix with 2 columns (x,y)}
@@ -16,6 +17,8 @@ dbivr(xrounded, roundvalue, burnin = 2, samples = 5, adaptive = FALSE)
 \item{samples}{sampling iteration size}
 
 \item{adaptive}{set to TRUE for adaptive bandwidth}
+
+\item{gridsize}{number of evaluation grid points}
 }
 \value{
 The function returns a list object with the following objects (besides all input objects):
@@ -43,7 +46,7 @@ Sigmas <- rbind(Sigma1, Sigma2, Sigma3)
 props <- c(1/3, 1/3, 1/3)
 \dontrun{xtrue=rmvnorm.mixt(n=1000, mus=mus, Sigmas=Sigmas, props=props)
 roundvalue=2
-xrounded=round_any(xtrue,roundvalue)
+xrounded=plyr::round_any(xtrue,roundvalue)
 est <- dbivr(xrounded,roundvalue=roundvalue,burnin=5,samples=10)
 
 #Plot corrected and Naive distribution
