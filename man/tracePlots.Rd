@@ -17,4 +17,3 @@ Prints summary statistics
 \description{
 Plots some trace plots for the rounding, bias and acceleration (beta) parameters
 }
-

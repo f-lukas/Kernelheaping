@@ -19,4 +19,3 @@ for rounded data is supported.
 \details{
 The most important function is \code{\link{dheaping}}. See the help and the attached examples on how to use the package.
 }
-

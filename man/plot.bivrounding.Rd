@@ -19,4 +19,3 @@ plot with Kernel density estimates (Naive, Corrected and True (if provided))
 \description{
 Plot Kernel density estimate of heaped data naively and corrected by partly bayesian model
 }
-

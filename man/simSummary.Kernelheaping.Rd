@@ -17,4 +17,3 @@ list with summary statistics
 \description{
 Simulation Summary
 }
-

@@ -50,7 +50,6 @@ List of estimation results
 Simulation of heaping correction method
 }
 \examples{
-\dontrun{Sims1 <- sim.Kernelheaping(simRuns=2, n=500, distribution="norm", 
+\dontrun{Sims1 <- sim.Kernelheaping(simRuns=2, n=500, distribution="norm",
 rounds=c(1,10,100), thresholds=c(0.3,0.4,0.3), sd=100)}
 }
-

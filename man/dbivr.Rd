@@ -5,7 +5,7 @@
 \title{Bivariate kernel density estimation for rounded data}
 \usage{
 dbivr(xrounded, roundvalue, burnin = 2, samples = 5, adaptive = FALSE,
-  gridsize = 1000)
+  gridsize = 200)
 }
 \arguments{
 \item{xrounded}{rounded values from which to estimate bivariate density, matrix with 2 columns (x,y)}
@@ -58,4 +58,3 @@ plot(est,trueX=xtrue)
  contour(dens,x=est$Mestimates$eval.points[[1]],y=est$Mestimates$eval.points[[2]],
     xlim=c(min(est$gridx),max(est$gridx)),ylim=c(min(est$gridy),max(est$gridy)),main="True Density")}
 }
-

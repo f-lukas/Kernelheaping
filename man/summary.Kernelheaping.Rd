@@ -17,4 +17,3 @@ Prints summary statistics
 \description{
 Prints some descriptive statistics (means and quantiles) for the estimated rounding, bias and acceleration (beta) parameters
 }
-

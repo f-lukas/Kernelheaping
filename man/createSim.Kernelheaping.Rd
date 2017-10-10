@@ -30,4 +30,3 @@ List of heaped values, true values and input parameters
 \description{
 Create heaped data for Simulation
 }
-
