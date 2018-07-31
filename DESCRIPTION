@@ -5,12 +5,12 @@ Authors@R: c(person("Marcus", "Gross",
   role = c("aut", "cre"), email = "marcus.gross@inwt-statistics.de"),
   person("Kerstin", "Erfurth", role = "ctb",
   email = "keri.erfurth@gmail.com"))
-Version: 2.1.8
-Date: 2017-10-04
+Version: 2.2.0
+Date: 2018-07-31
 Depends: R (>= 2.15.0), MASS, ks, sparr
 Imports: sp, plyr, fastmatch, magrittr, mvtnorm
 Author: Marcus Gross [aut, cre],
-    Kerstin Erfurth [ctb]
+  Kerstin Erfurth [ctb]
 Maintainer: Marcus Gross <marcus.gross@inwt-statistics.de>
 Description: In self-reported or anonymised data the user often encounters
     heaped data, i.e. data which are rounded (to a possibly different degree
@@ -26,6 +26,6 @@ Description: In self-reported or anonymised data the user often encounters
 License: GPL-2 | GPL-3
 RoxygenNote: 6.0.1
 NeedsCompilation: no
-Packaged: 2017-10-10 15:25:16 UTC; mgross
+Packaged: 2018-07-31 14:50:22 UTC; mgross
 Repository: CRAN
-Date/Publication: 2017-10-10 16:48:26 UTC
+Date/Publication: 2018-07-31 15:10:02 UTC

@@ -6,7 +6,7 @@
 \usage{
 dshapebivr(data, burnin = 2, samples = 5, adaptive = FALSE, shapefile,
   gridsize = 200, boundary = FALSE, deleteShapes = NULL,
-  fastWeights = FALSE, numChains = 1, numThreads = 1)
+  fastWeights = TRUE, numChains = 1, numThreads = 1)
 }
 \arguments{
 \item{data}{data.frame with 3 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area.}
@@ -56,11 +56,11 @@ data <- read.csv2("X:/SomeDir/EWR201512E_Matrix.csv")
 
 # Form Dataset for Estimation Process
 dataIn <- cbind(t(sapply(1:length(Berlin@polygons),
- function(x) Berlin@polygons[[x]]\\@labpt)), data$E_E65U80)
+ function(x) Berlin@polygons[[x]]@labpt)), data$E_E65U80)
 
 #Estimate Bivariate Density
 Est <- dshapebivr(data = dataIn, burnin = 5, samples = 10, adaptive = FALSE,
-                 shapefile = Briefwahl, gridsize = 325, boundary = TRUE)}
+                 shapefile = Berlin, gridsize = 325, boundary = TRUE)}
 
 # Plot Density over Area:
 \dontrun{breaks <- seq(1E-16,max(Est$Mestimates$estimate),length.out = 20)

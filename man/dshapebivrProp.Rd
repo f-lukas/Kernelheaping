@@ -6,7 +6,7 @@
 \usage{
 dshapebivrProp(data, burnin = 2, samples = 5, adaptive = FALSE, shapefile,
   gridsize = 200, boundary = FALSE, deleteShapes = NULL,
-  fastWeights = FALSE, numChains = 1, numThreads = 1)
+  fastWeights = TRUE, numChains = 1, numThreads = 1)
 }
 \arguments{
 \item{data}{data.frame with 4 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations.}
@@ -48,11 +48,11 @@ data <- read.csv2("X:/SomeDir/EWR201512E_Matrix.csv")
 
 # Form Dataset for Estimation Process
 dataIn <- cbind(t(sapply(1:length(Berlin@polygons),
-function(x) Berlin@polygons[[x]]\\@labpt)), data$E_E65U80, data$E_E)
+function(x) Berlin@polygons[[x]]@labpt)), data$E_E65U80, data$E_E)
 
 #Estimate Bivariate Proportions (may take some minutes)
-PropEst <- dshapebivrProp(data=dataIn, burnin=5, samples=20, adaptive=FALSE,
-shapefile=Briefwahl, gridsize=325, numChains = 16, numThreads = 4)}
+PropEst <- dshapebivrProp(data = dataIn, burnin = 5, samples = 20, adaptive = FALSE,
+shapefile = Berlin, gridsize=325, numChains = 16, numThreads = 4)}
 
 # Plot Proportions over Area:
 \dontrun{

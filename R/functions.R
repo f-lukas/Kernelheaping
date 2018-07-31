@@ -786,11 +786,11 @@ dclass <- function(xclass, classes, burnin=2, samples=5, boundary=FALSE, bw="nrd
 #' 
 #' # Form Dataset for Estimation Process
 #' dataIn <- cbind(t(sapply(1:length(Berlin@polygons),
-#'  function(x) Berlin@polygons[[x]]\@labpt)), data$E_E65U80)
+#'  function(x) Berlin@polygons[[x]]@labpt)), data$E_E65U80)
 #' 
 #' #Estimate Bivariate Density
 #' Est <- dshapebivr(data = dataIn, burnin = 5, samples = 10, adaptive = FALSE,
-#'                  shapefile = Briefwahl, gridsize = 325, boundary = TRUE)}
+#'                  shapefile = Berlin, gridsize = 325, boundary = TRUE)}
 #' 
 #' # Plot Density over Area:
 #' \dontrun{breaks <- seq(1E-16,max(Est$Mestimates$estimate),length.out = 20)
@@ -799,9 +799,9 @@ dclass <- function(xclass, classes, burnin=2, samples=5, boundary=FALSE, bw="nrd
 #'           col =  colorRampPalette(brewer.pal(9,"YlOrRd"))(length(breaks)-1))
 #' plot(Berlin, add=TRUE)}
 #' @export
-dshapebivr <- function(data, burnin=2, samples=5, adaptive=FALSE, shapefile,
-                       gridsize=200, boundary = FALSE, deleteShapes = NULL,
-                       fastWeights = FALSE, numChains=1, numThreads=1){
+dshapebivr <- function(data, burnin = 2, samples = 5, adaptive = FALSE, shapefile,
+                       gridsize = 200, boundary = FALSE, deleteShapes = NULL,
+                       fastWeights = TRUE, numChains = 1, numThreads=1){
   ###########################################################
   ##### get polygon shape coordinates from data #####
   ###########################################################
@@ -1148,11 +1148,11 @@ calcWeights_fast <- function(inside, outside, gridx, gridy, H) {
 #' 
 #' # Form Dataset for Estimation Process
 #' dataIn <- cbind(t(sapply(1:length(Berlin@polygons),
-#' function(x) Berlin@polygons[[x]]\@labpt)), data$E_E65U80, data$E_E)
+#' function(x) Berlin@polygons[[x]]@labpt)), data$E_E65U80, data$E_E)
 #' 
 #' #Estimate Bivariate Proportions (may take some minutes)
-#' PropEst <- dshapebivrProp(data=dataIn, burnin=5, samples=20, adaptive=FALSE,
-#' shapefile=Briefwahl, gridsize=325, numChains = 16, numThreads = 4)}
+#' PropEst <- dshapebivrProp(data = dataIn, burnin = 5, samples = 20, adaptive = FALSE,
+#' shapefile = Berlin, gridsize=325, numChains = 16, numThreads = 4)}
 #' 
 #' # Plot Proportions over Area:
 #' \dontrun{
@@ -1164,7 +1164,7 @@ calcWeights_fast <- function(inside, outside, gridx, gridy, H) {
 #' @export
 dshapebivrProp <- function(data, burnin=2, samples=5, adaptive=FALSE,
                            shapefile, gridsize=200, boundary = FALSE,
-                           deleteShapes = NULL, fastWeights = FALSE,
+                           deleteShapes = NULL, fastWeights = TRUE,
                            numChains=1, numThreads=1){
   ###########################################################
   ##### get polygon shape coordinates from data #####
@@ -1364,7 +1364,6 @@ dshapebivrProp_calcChain <- function(chain,
                                      unselectionGrid)
 {
   printInfo("Start Chain ", chain)
-  
   # return object; if saveAsBaseFileName is != NA it will be saved as RData File instead
   ret = list()
   ret$resultDensity=array(dim=c(burnin+samples,length(gridx),length(gridy)))
@@ -1380,6 +1379,8 @@ dshapebivrProp_calcChain <- function(chain,
     newAllCnt=1
     new=matrix(nrow=sum(npoints), ncol=2)
     newCnt=1
+    print(j)
+
     printTiming("Calc Probabilities", {
       for(i in 1:length(selectionGrid)){
         probsAll=MestimatesAll$estimate[cbind(match(grid[selectionGrid[[i]],1],
@@ -1442,7 +1443,6 @@ dshapebivrProp_calcChain <- function(chain,
         wAll <- weights[ fmatch(newAll_2SingleID, inside_2SingleID, nomatch = 1) ]
       })
     }
-    
     #recompute density
     printTiming("Recompute Density", {
       if(adaptive==FALSE){
@@ -1458,6 +1458,10 @@ dshapebivrProp_calcChain <- function(chain,
                                                  comment=FALSE, counts=counts[,3])
         Mestimates$estimate=MestimatesAd$Zm
       }
+      #weird behaviour of ks::kde returning negative densities (probably due to numeric problems)
+      Mestimates$estimate[Mestimates$estimate < 0] <- 0
+      MestimatesAll$estimate[MestimatesAll$estimate < 0] <- 0
+      
     })
     
     printTiming("Delete Shapes", {
