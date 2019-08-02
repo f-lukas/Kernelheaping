@@ -6,8 +6,8 @@
 \usage{
 sim.Kernelheaping(simRuns, n, distribution, rounds, thresholds,
   downbias = 0.5, setBias = FALSE, Beta = 0, unequal = FALSE,
-  burnin = 5, samples = 10, bw = "nrd0", offset = 0, boundary = FALSE,
-  adjust = 1, ...)
+  burnin = 5, samples = 10, bw = "nrd0", offset = 0,
+  boundary = FALSE, adjust = 1, ...)
 }
 \arguments{
 \item{simRuns}{number of simulations runs}

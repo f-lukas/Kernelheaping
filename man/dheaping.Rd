@@ -6,7 +6,8 @@
 \usage{
 dheaping(xheaped, rounds, burnin = 5, samples = 10, setBias = FALSE,
   weights = NULL, bw = "nrd0", boundary = FALSE, unequal = FALSE,
-  random = FALSE, adjust = 1, recall = F, recallParams = c(1/3, 1/3))
+  random = FALSE, adjust = 1, recall = F, recallParams = c(1/3,
+  1/3))
 }
 \arguments{
 \item{xheaped}{heaped values from which to estimate density of x}

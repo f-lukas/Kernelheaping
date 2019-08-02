@@ -4,8 +4,8 @@
 \alias{dshapebivrProp}
 \title{Bivariate Kernel density estimation for data classified in polygons or shapes}
 \usage{
-dshapebivrProp(data, burnin = 2, samples = 5, adaptive = FALSE, shapefile,
-  gridsize = 200, boundary = FALSE, deleteShapes = NULL,
+dshapebivrProp(data, burnin = 2, samples = 5, adaptive = FALSE,
+  shapefile, gridsize = 200, boundary = FALSE, deleteShapes = NULL,
   fastWeights = TRUE, numChains = 1, numThreads = 1)
 }
 \arguments{

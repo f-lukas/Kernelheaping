@@ -4,15 +4,15 @@
 \alias{toOtherShape}
 \title{Transfer observations to other shape}
 \usage{
-toOtherShape(Kest, shapefile)
+toOtherShape(Mestimates, shapefile)
 }
 \arguments{
-\item{Kest}{Estimation object created by function dshapebivr}
+\item{Mestimates}{Estimation object created by function dshapebivr}
 
 \item{shapefile}{The new shapefile for which the observations shall be transferred to}
 }
 \value{
-The function returns the count of the observations in the different shapfile:
+The function returns the count, sd and 90%-coverage interval of the observations in the different shapfile:
 }
 \description{
 Transfer observations to other shape

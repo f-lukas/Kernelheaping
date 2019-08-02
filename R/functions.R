@@ -1518,24 +1518,44 @@ dshapebivrProp_calcChain <- function(chain,
 
 
 #' Transfer observations to other shape
-#' @param Kest Estimation object created by function dshapebivr
+#' @param Mestimates Estimation object created by function dshapebivr
 #' @param shapefile The new shapefile for which the observations shall be transferred to
 #' @return
-#' The function returns the count of the observations in the different shapfile:
+#' The function returns the count, sd and 90%-coverage interval of the observations in the different shapfile:
 #' @export
-toOtherShape <- function(Kest,shapefile){
-  counts <- rep(0,length(shapefile@polygons))
-  for(i in 1:length(shapefile@polygons)){
-    for(j in 1:length(shapefile@polygons[[i]]@Polygons)){
-      counts[i] <- counts[i] + round(mean(sapply((Kest$burnin+1):(Kest$burnin+Kest$samples),
-                                                 function(x) length(which(point.in.polygon(Kest$resultX[x,,1],
-                                                                                           Kest$resultX[x,,2],
-                                                                                           shapefile@polygons[[i]]@Polygons[[j]]@coords[,1],
-                                                                                           shapefile@polygons[[i]]@Polygons[[j]]@coords[,2])==1)))))
-    }
+toOtherShape <- function(Mestimates, shapefile){
+  pol.x <- list()
+  pol.y <- list()
+  for (i in 1:length(shapefile@polygons)) {
+    pol.x[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,1]
+    pol.y[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,2]
   }
-  return(counts)
+  meanCount <- rep(NA,length(shapefile@polygons))
+  sdCount <- rep(NA,length(shapefile@polygons))
+  q0.05Count <- rep(NA,length(shapefile@polygons))
+  q0.95Count <- rep(NA,length(shapefile@polygons))
+  
+  for(i in 1:length(shapefile@polygons)){
+    
+    counts <- Reduce(c, lapply(1:dim(Mestimates$resultX)[1], function(j) {
+      
+      sapply((Mestimates$burnin+1):(Mestimates$burnin+Mestimates$samples),
+             function(x) length(which(point.in.polygon(Mestimates$resultX[j,x,,1],
+                                                       Mestimates$resultX[j,x,,2],
+                                                       pol.x[[i]],pol.y[[i]])==1)))
+    }))
+    
+    meanCount[i] <- round(mean(counts))
+    sdCount[i] <- round(sd(counts))
+    q0.05Count[i] <- round(quantile(counts, 0.05))
+    q0.95Count[i] <- round(quantile(counts, 0.95))
+    
+    print(i)
+  }
+  return(data.frame(meanCount, sdCount, q0.05Count, q0.95Count))
 }
+
+
 
 
 setKernelheapingLoglevel <- function(logInfo = TRUE, logDump = FALSE, logTiming = FALSE) {
