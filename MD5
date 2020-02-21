@@ -1,8 +1,8 @@
-769c524b93ae8c35daec40896f59a0bf *DESCRIPTION
+e577788646fa1b577824a9d2b562d329 *DESCRIPTION
 45e9d25e1ecde115f85e2ec928b01143 *NAMESPACE
 7249f70a0ddffada98c4bdbffa7a6d65 *R/Kernelheaping.R
 d9e708b7404d20f929b72be892a2d360 *R/datasets.R
-f756a55ff9c1890f75dadbd9eecb59bf *R/functions.R
+2b8d61d10ae7eddde0a9a1297bb612ac *R/functions.R
 37d9131fec1d14053c06d00d59d1fe61 *data/students.R
 f56a950dada555b0359867cbbd4e3eb3 *man/Kernelheaping.Rd
 08c815b75b1bde9736d3ba9565aa7aa3 *man/createSim.Kernelheaping.Rd

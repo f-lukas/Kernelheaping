@@ -996,7 +996,7 @@ dshapebivr_calcChain <- function(chain,
         if(length(selectionGrid[[i]])==0){points <- matrix(ncol=2,shapefile@polygons[[i]]@labpt)
         probs=1}
         if(npoints[i]>0){
-          sampleProp=sample(1:nrow(points),size=max(0,npoints[i],na.rm=T),replace=T,prob=probs)
+            sampleProp = sample(1:nrow(points),size=max(0,npoints[i],na.rm=T),replace=T,prob=probs)
           new[newCnt:(newCnt+npoints[i]-1), ] = points[sampleProp,]
           newCnt = newCnt+npoints[i]
         }
@@ -1404,7 +1404,12 @@ dshapebivrProp_calcChain <- function(chain,
           newAllCnt = newAllCnt+npointsAll[i]
         }
         if(npoints[i]>0){
-          sampleProp=sample(sampleAll,size=max(0,npoints[i],na.rm=T),prob=probsPROP[sampleAll])
+          if (length(sampleAll) == 1) {
+            sampleProp = sampleAll
+          } else {
+            sampleProp <- sample(sampleAll,
+                                 size = max(0, npoints[i], na.rm = T), prob = probsPROP[sampleAll])
+          }
           new[newCnt:(newCnt+npoints[i]-1), ] = points[sampleProp,]
           newCnt = newCnt+npoints[i]
         }
@@ -1523,40 +1528,38 @@ dshapebivrProp_calcChain <- function(chain,
 #' @return
 #' The function returns the count, sd and 90%-coverage interval of the observations in the different shapfile:
 #' @export
-toOtherShape <- function(Mestimates, shapefile){
-  pol.x <- list()
-  pol.y <- list()
-  for (i in 1:length(shapefile@polygons)) {
-    pol.x[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,1]
-    pol.y[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,2]
-  }
-  meanCount <- rep(NA,length(shapefile@polygons))
-  sdCount <- rep(NA,length(shapefile@polygons))
-  q0.05Count <- rep(NA,length(shapefile@polygons))
-  q0.95Count <- rep(NA,length(shapefile@polygons))
+toOtherShape <- function(Mestimates, shapefile) {
+  meanCount <- rep(NA, length(shapefile@polygons))
+  sdCount <- rep(NA, length(shapefile@polygons))
+  q0.05Count <- rep(NA, length(shapefile@polygons))
+  q0.95Count <- rep(NA, length(shapefile@polygons))
   
-  for(i in 1:length(shapefile@polygons)){
-    
-    counts <- Reduce(c, lapply(1:dim(Mestimates$resultX)[1], function(j) {
-      
-      sapply((Mestimates$burnin+1):(Mestimates$burnin+Mestimates$samples),
-             function(x) length(which(point.in.polygon(Mestimates$resultX[j,x,,1],
-                                                       Mestimates$resultX[j,x,,2],
-                                                       pol.x[[i]],pol.y[[i]])==1)))
-    }))
+  for (i in 1:length(shapefile@polygons)) {
+    counts <-
+      Reduce(c, lapply(1:dim(Mestimates$resultX)[1], function(j) {
+        sapply((Mestimates$burnin + 1):(Mestimates$burnin + Mestimates$samples),
+               function(x) {
+                 lapply(1:length(shapefile@polygons[[i]]@Polygons), function(k) {
+                   if (shapefile@polygons[[i]]@Polygons[[k]]@hole == FALSE) {
+                     which(
+                       point.in.polygon(
+                         Mestimates$resultX[j, x, , 1],
+                         Mestimates$resultX[j, x, , 2],
+                         shapefile@polygons[[i]]@Polygons[[k]]@coords[, 1],
+                         shapefile@polygons[[i]]@Polygons[[k]]@coords[, 2]) == 1
+                     )
+                   }
+                 }) %>% unlist %>% unique %>% length
+               })
+      }))
     
     meanCount[i] <- round(mean(counts))
     sdCount[i] <- round(sd(counts))
     q0.05Count[i] <- round(quantile(counts, 0.05))
     q0.95Count[i] <- round(quantile(counts, 0.95))
-    
-    print(i)
   }
   return(data.frame(meanCount, sdCount, q0.05Count, q0.95Count))
 }
-
-
-
 
 setKernelheapingLoglevel <- function(logInfo = TRUE, logDump = FALSE, logTiming = FALSE) {
   assign("logLevelInfo"  , logInfo  ,  envir=kernelheapingEnv)
