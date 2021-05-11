@@ -1,6 +1,8 @@
 #' @importFrom grDevices rainbow
 #' @importFrom graphics box contour image legend lines par plot
-#' @importFrom stats aggregate density dnorm optim pnorm qnorm quantile rgamma runif rnorm
+#' @importFrom stats aggregate density dnorm optim pnorm qnorm quantile rgamma runif rnorm sd
+#' @importFrom GB2 mlfit.gb2
+#' @importFrom fitdistrplus fitdist
 #' @importFrom sp point.in.polygon
 #' @importFrom plyr round_any count
 #' @importFrom magrittr "%>%"
@@ -686,14 +688,14 @@ getNewV <- function(heapedvalues, selectionGrid, Mestimates, Rprs1, Rprs2, xtabl
 }
 
 #' Kernel density estimation for classified data
-#' @param xclass classified values; factor with ordered factor values
-#' @param classes numeric vector of classes; Inf as last value is allowed
+#' @param xclass classified values; matrix with two columns: lower and upper value
 #' @param burnin burn-in sample size
 #' @param samples sampling iteration size
 #' @param boundary TRUE for positive only data (no positive density for negative values)
 #' @param bw bandwidth selector method, defaults to "nrd0" see \code{density} for more options
 #' @param evalpoints number of evaluation grid points
 #' @param adjust as in \code{density}, the user can multiply the bandwidth by a certain factor such that bw=adjust*bw
+#' @param dFunc character optional density (with "d", "p" and "q" functions) function name for parametric estimation such as "norm" "gamma" or "lnorm"
 #' @return
 #' The function returns a list object with the following objects (besides all input objects):
 #' \item{\code{Mestimates}}{kde object containing the corrected density estimate}
@@ -704,51 +706,95 @@ getNewV <- function(heapedvalues, selectionGrid, Mestimates, Rprs1, Rprs2, xtabl
 #' x=rlnorm(500, meanlog = 8, sdlog = 1)
 #' classes <- c(0,500,1000,1500,2000,2500,3000,4000,5000,6000,8000,10000,15000,Inf)
 #' xclass <- cut(x,breaks=classes)
-#' densityEst <- dclass(xclass=xclass, classes=classes, burnin=100, samples=200, evalpoints=1000)
-#' hist(densityEst$xclass,breaks=densityEst$classes)
-#' lines(densityEst$Mestimates~densityEst$gridx,col="purple",lwd=2)
+#' xclass <- cbind(classes[as.numeric(xclass)], classes[as.numeric(xclass) + 1])
+#' densityEst <- dclass(xclass=xclass, burnin=20, samples=50, evalpoints=1000)
+#' plot(densityEst$Mestimates~densityEst$gridx ,lwd=2, type = "l")
 #' @export
-dclass <- function(xclass, classes, burnin=2, samples=5, boundary=FALSE, bw="nrd0",
-                   evalpoints=200, adjust=1){
-  if(max(classes)==Inf){classes[length(classes)]=3*classes[length(classes)-1]}
-  classmeans <- sapply(1:(length(classes)-1), function(x) 1/2*(classes[x+1]+classes[x]))
-  levels(xclass) <- classmeans
-  lengths=as.vector(table(xclass))
+dclass <- function(xclass, burnin=2, samples=5, boundary=FALSE, bw="nrd0",
+                   evalpoints=200, adjust=1, dFunc = NULL){
+  if(max(xclass)==Inf){xclass[xclass == Inf]=3*max(xclass[xclass != Inf])}
   
-  xclass <- as.numeric(as.character(xclass))
+  classmeans <- apply(xclass, 1, mean)
+  
   #Create grid - sparr package requires identical grid length on both axis:
-  gridx=seq(min(classes),max(classes),length=evalpoints)
+  gridx=seq(min(xclass),max(xclass),length=evalpoints)
   #Pilot Estimation
-  if(boundary==FALSE){Mestimates <- density(xclass,from=min(gridx),to=max(gridx),n=length(gridx),bw=2*max(classes)/length(classes))$y}
-  if(boundary==TRUE){Mestimates <- dbc(gridx=gridx,x=xclass,bw=2*max(classes)/length(classes))}
+  if(is.null(dFunc)){
+    if(boundary==FALSE){Mestimates <- density(classmeans,from=min(gridx),to=max(gridx),n=length(gridx),bw=2*max(xclass) / 10)$y}
+    if(boundary==TRUE){Mestimates <- dbc(gridx=gridx,x=classmeans,bw=2*max(xclass) / 10)}
+  } else {
+    if(dFunc != "gb2"){
+      pars <- fitdist(classmeans, dFunc, method = "mme")$estimate
+    } else {
+      pars <- mlfit.gb2(classmeans)[[2]]$par
+    }
+    args <- vector(mode = "list", length = 1 + length(pars))
+    args[[1]] <- gridx
+    args[2:(1+length(pars))] <- pars[1:length(pars)]
+    Mestimates <- do.call(paste0("d", dFunc), args)
+    Mestimates[is.na(Mestimates)] <- 0
+    Mestimates[Mestimates == Inf] <- max(Mestimates[Mestimates != Inf])
+  }
   
   #Result matrices
   resultDensity=matrix(ncol=c(burnin+samples),nrow=length(gridx))
   resultX=matrix(ncol=c(burnin+samples),nrow=length(xclass))
   
-  selectionGrid<-lapply(1:(length(classes)-1),function(k){
-    selection=which(gridx>=classes[k]&gridx<classes[k+1])
+  if(!is.null(dFunc)){
+    parsOut <- matrix(ncol=c(burnin+samples),nrow=length(pars))
+  }
+  
+  selectionGrid<-lapply(1:nrow(xclass),function(k){
+    selection=which(gridx>=xclass[k, 1]&gridx<xclass[k,2])
     selection})
   #SEM Estimator
   for(j in 1:(burnin+samples)){
     new=c()
-    for(i in 1:(length(classes)-1)){
+    for(i in 1:nrow(xclass)){
       probs=as.vector(Mestimates[selectionGrid[[i]]])
       points=gridx[selectionGrid[[i]]]
-      npoints=lengths[i]
-      new=c(new,points[sample(1:length(points),size=npoints,replace=T,prob=probs)])
+      new=c(new,points[sample(1:length(points),size=1,replace=T,prob=probs)])
     }
-    NewDensity <- density(new,from=min(gridx),to=max(gridx),n=length(gridx),bw=bw,adjust=adjust)
-    Mestimates <- NewDensity$y
-    if(boundary==TRUE){Mestimates <- dbc(gridx=gridx,x=new,bw=NewDensity$bw)}
+    if(is.null(dFunc)){
+      NewDensity <- density(new,from=min(gridx),to=max(gridx),n=length(gridx),bw=bw,adjust=adjust)
+      Mestimates <- NewDensity$y
+      if(boundary==TRUE){
+        Mestimates <- dbc(gridx=gridx,x=new,bw=NewDensity$bw)
+      }
+    } else {
+      if(dFunc != "gb2"){
+        pars <- fitdist(new, dFunc, method = "mme")$estimate
+      } else {
+        pars <- mlfit.gb2(new)[[2]]$par
+      }
+      args <- vector(mode = "list", length = 1 + length(pars))
+      args[[1]] <- gridx
+      args[2:(1+length(pars))] <- pars[1:length(pars)]
+      Mestimates <- do.call(paste0("d", dFunc), args)
+      Mestimates[is.na(Mestimates)] <- 0
+      
+      Mestimates[Mestimates == Inf] <- max(Mestimates[Mestimates != Inf])
+    }
     resultDensity[,j]=Mestimates
     resultX[,j]=new
+    if(!is.null(dFunc)){
+      parsOut[,j] <- pars
+    }
+    
     print(paste("Iteration:",j,"of", burnin+samples))
   }
   Mestimates=apply(resultDensity[,-c(1:burnin)],c(1),mean)
-  est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
-            xclass=xclass, gridx=gridx, classes=classes,
-            burnin=burnin, samples=samples)
+  if(is.null(dFunc)){
+    est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
+              xclass=xclass, gridx=gridx,
+              burnin=burnin, samples=samples)
+  } else {
+    est<-list(Mestimates=Mestimates,resultDensity=resultDensity,resultX=resultX,
+              parsOut = parsOut,
+              xclass=xclass, gridx=gridx,
+              burnin=burnin, samples=samples)
+    
+  }
   class(est) <- "classDensity"
   return(est)
 }
@@ -911,9 +957,7 @@ dshapebivr <- function(data, burnin = 2, samples = 5, adaptive = FALSE, shapefil
               Mestimates,burnin,samples,grid,gridx,gridy,
               selectionGrid,shapefile,npoints,adaptive,boundary,
               fastWeights,data,inside,outside,deleteShapes,unselectionGrid)
-    
     stopCluster(cl)
-    closeAllConnections()
     gc()
     
     # copy results to output data structures
@@ -993,10 +1037,16 @@ dshapebivr_calcChain <- function(chain,
                                         fmatch(grid[selectionGrid[[i]],2],
                                                Mestimates$eval.points[[2]]))]+1E-10
         points=matrix(ncol=2,grid[selectionGrid[[i]],])
-        if(length(selectionGrid[[i]])==0){points <- matrix(ncol=2,shapefile@polygons[[i]]@labpt)
-        probs=1}
-        if(npoints[i]>0){
+        if(length(selectionGrid[[i]])==0){
+          points <- matrix(ncol=2,shapefile@polygons[[i]]@labpt)
+          probs <- 1
+        }
+        if(npoints[i] > 0){
+          if(npoints[i] == 1){
+            sampleProp <- 1
+          } else {
             sampleProp = sample(1:nrow(points),size=max(0,npoints[i],na.rm=T),replace=T,prob=probs)
+          }
           new[newCnt:(newCnt+npoints[i]-1), ] = points[sampleProp,]
           newCnt = newCnt+npoints[i]
         }
@@ -1304,9 +1354,9 @@ dshapebivrProp <- function(data, burnin=2, samples=5, adaptive=FALSE,
               gridx, gridy, selectionGrid, shapefile, npointsAll,
               npoints, adaptive,boundary,fastWeights, data, inside,
               outside, deleteShapes, unselectionGrid)
-
-    stopCluster(cl); closeAllConnections()
-    rm(cl); gc()
+    stopCluster(cl)
+    rm(cl)
+    gc()
     
     # copy results to output data structures
     for(c in seq(1,numChains))
@@ -1523,7 +1573,7 @@ dshapebivrProp_calcChain <- function(chain,
 
 
 #' Transfer observations to other shape
-#' @param Mestimates Estimation object created by function dshapebivr
+#' @param Mestimates Estimation object created by functions dshapebivr and dbivr
 #' @param shapefile The new shapefile for which the observations shall be transferred to
 #' @return
 #' The function returns the count, sd and 90%-coverage interval of the observations in the different shapfile:
@@ -1541,6 +1591,15 @@ toOtherShape <- function(Mestimates, shapefile) {
                function(x) {
                  lapply(1:length(shapefile@polygons[[i]]@Polygons), function(k) {
                    if (shapefile@polygons[[i]]@Polygons[[k]]@hole == FALSE) {
+                     if(length(dim(Mestimates$resultX)) == 3){
+                       which(
+                         point.in.polygon(
+                           Mestimates$resultX[x, , 1],
+                           Mestimates$resultX[x, , 2],
+                           shapefile@polygons[[i]]@Polygons[[k]]@coords[, 1],
+                           shapefile@polygons[[i]]@Polygons[[k]]@coords[, 2]) == 1
+                       )
+                     } else {
                      which(
                        point.in.polygon(
                          Mestimates$resultX[j, x, , 1],
@@ -1548,6 +1607,7 @@ toOtherShape <- function(Mestimates, shapefile) {
                          shapefile@polygons[[i]]@Polygons[[k]]@coords[, 1],
                          shapefile@polygons[[i]]@Polygons[[k]]@coords[, 2]) == 1
                      )
+                    }
                    }
                  }) %>% unlist %>% unique %>% length
                })

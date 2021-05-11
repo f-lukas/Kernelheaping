@@ -4,13 +4,19 @@
 \alias{dclass}
 \title{Kernel density estimation for classified data}
 \usage{
-dclass(xclass, classes, burnin = 2, samples = 5, boundary = FALSE,
-  bw = "nrd0", evalpoints = 200, adjust = 1)
+dclass(
+  xclass,
+  burnin = 2,
+  samples = 5,
+  boundary = FALSE,
+  bw = "nrd0",
+  evalpoints = 200,
+  adjust = 1,
+  dFunc = NULL
+)
 }
 \arguments{
-\item{xclass}{classified values; factor with ordered factor values}
-
-\item{classes}{numeric vector of classes; Inf as last value is allowed}
+\item{xclass}{classified values; matrix with two columns: lower and upper value}
 
 \item{burnin}{burn-in sample size}
 
@@ -23,6 +29,8 @@ dclass(xclass, classes, burnin = 2, samples = 5, boundary = FALSE,
 \item{evalpoints}{number of evaluation grid points}
 
 \item{adjust}{as in \code{density}, the user can multiply the bandwidth by a certain factor such that bw=adjust*bw}
+
+\item{dFunc}{character optional density (with "d", "p" and "q" functions) function name for parametric estimation such as "norm" "gamma" or "lnorm"}
 }
 \value{
 The function returns a list object with the following objects (besides all input objects):
@@ -38,7 +46,7 @@ Kernel density estimation for classified data
 x=rlnorm(500, meanlog = 8, sdlog = 1)
 classes <- c(0,500,1000,1500,2000,2500,3000,4000,5000,6000,8000,10000,15000,Inf)
 xclass <- cut(x,breaks=classes)
-densityEst <- dclass(xclass=xclass, classes=classes, burnin=100, samples=200, evalpoints=1000)
-hist(densityEst$xclass,breaks=densityEst$classes)
-lines(densityEst$Mestimates~densityEst$gridx,col="purple",lwd=2)
+xclass <- cbind(classes[as.numeric(xclass)], classes[as.numeric(xclass) + 1])
+densityEst <- dclass(xclass=xclass, burnin=20, samples=50, evalpoints=1000)
+plot(densityEst$Mestimates~densityEst$gridx ,lwd=2, type = "l")
 }

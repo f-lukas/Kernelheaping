@@ -4,8 +4,14 @@
 \alias{dbivr}
 \title{Bivariate kernel density estimation for rounded data}
 \usage{
-dbivr(xrounded, roundvalue, burnin = 2, samples = 5,
-  adaptive = FALSE, gridsize = 200)
+dbivr(
+  xrounded,
+  roundvalue,
+  burnin = 2,
+  samples = 5,
+  adaptive = FALSE,
+  gridsize = 200
+)
 }
 \arguments{
 \item{xrounded}{rounded values from which to estimate bivariate density, matrix with 2 columns (x,y)}

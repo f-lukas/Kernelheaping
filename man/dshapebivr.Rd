@@ -4,9 +4,19 @@
 \alias{dshapebivr}
 \title{Bivariate Kernel density estimation for data classified in polygons or shapes}
 \usage{
-dshapebivr(data, burnin = 2, samples = 5, adaptive = FALSE,
-  shapefile, gridsize = 200, boundary = FALSE, deleteShapes = NULL,
-  fastWeights = TRUE, numChains = 1, numThreads = 1)
+dshapebivr(
+  data,
+  burnin = 2,
+  samples = 5,
+  adaptive = FALSE,
+  shapefile,
+  gridsize = 200,
+  boundary = FALSE,
+  deleteShapes = NULL,
+  fastWeights = TRUE,
+  numChains = 1,
+  numThreads = 1
+)
 }
 \arguments{
 \item{data}{data.frame with 3 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area.}

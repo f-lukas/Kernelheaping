@@ -3,7 +3,6 @@
 \docType{package}
 \name{Kernelheaping}
 \alias{Kernelheaping}
-\alias{Kernelheaping-package}
 \title{Kernel Density Estimation for Heaped Data}
 \description{
 In self-reported or anonymized data the user often encounters heaped data,

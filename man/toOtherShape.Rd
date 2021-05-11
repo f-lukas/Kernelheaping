@@ -7,7 +7,7 @@
 toOtherShape(Mestimates, shapefile)
 }
 \arguments{
-\item{Mestimates}{Estimation object created by function dshapebivr}
+\item{Mestimates}{Estimation object created by functions dshapebivr and dbivr}
 
 \item{shapefile}{The new shapefile for which the observations shall be transferred to}
 }
