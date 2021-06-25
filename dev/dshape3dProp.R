@@ -153,7 +153,7 @@ dshape3dProp <- function(data, burnin=2, samples=5, adaptive=FALSE,
   {
     cl <- makeCluster(numCoresToUse , type="PSOCK", outfile="")
     # export necessary functions and libraries
-    clusterEvalQ(cl, { library(ks); library(mvtnorm); library(dplyr); library(fastmatch); library(Kernelheaping) })
+    clusterEvalQ(cl, { library(ks); library(mvtnorm); library(dplyr); library(fastmatch); library(Kernelheaping); source(paste0(dirname(getwd()),"/R/functions.R")) })
     
     # generate random filename which is used for result files for each thread
     baseFilename = paste(tempdir(), "/", runif(1, min=1000000, max=9999999), "_", sep="")

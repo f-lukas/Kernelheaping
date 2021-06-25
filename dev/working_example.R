@@ -20,6 +20,8 @@ setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
 # shapefile
 # data_3days: data.frame with data for 15.03.2021 - 17.03.2021
 # data_7days: data.frame with data for 15.03.2021 - 21.03.2021
+# data_14days: data.frame with data for 15.03.2021 - 28.03.2021
+# data_28days: data.frame with data for 01.03.2021 - 28.03.2021
 load(paste0(getwd(),"/data.RData"))
 
 # load kernelheaping functions
@@ -36,7 +38,7 @@ head(data)
 # not yet implemented or tested:
   # adaptive = TRUE
   # delete shapes
-start <- Sys.time()
+
   set.seed(1)
   est <- dshape3dProp(data = data,
                           burnin = 2,
@@ -45,8 +47,6 @@ start <- Sys.time()
                           gridsize = 200,
                           numChains = 1,
                           numThreads = 1)
-  end <- Sys.time()
-  end-start
 
 
 ######################################################
