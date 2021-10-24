@@ -1891,8 +1891,8 @@ dshape3dProp_calcChain <- function(chain,
       }) # end of i
       
       
-      newAllk <- data.frame(newAllk) %>% group_by_all() %>% count %>% distinct %>% as.matrix() # slightly faster but requires dplyr
-      # newAllk <- as.matrix(ddply(data.frame(newAllk),.(X1,X2,X3),nrow)) # uses plyr
+      # newAllk <- data.frame(newAllk) %>% group_by_all() %>% count %>% distinct %>% as.matrix() # slightly faster but requires dplyr
+      newAllk <- as.matrix(ddply(data.frame(newAllk),.(X1,X2,X3),nrow)) # uses plyr
       
       newAll <- rbind(newAll,newAllk)
       new <- rbind(new,newk)
