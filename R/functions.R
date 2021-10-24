@@ -1571,6 +1571,466 @@ dshapebivrProp_calcChain <- function(chain,
   }
 }
 
+#' 3d Kernel density estimation for data classified in polygons or shapes
+#' @param data data.frame with 5 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations and third variable.
+#' @param burnin burn-in sample size
+#' @param samples sampling iteration size
+#' @param shapefile shapefile with number of polygons equal to nrow(data) / length(unique(data[,5]))
+#' @param gridsize number of evaluation grid points
+#' @param boundary boundary corrected kernel density estimate?
+#' @param fastWeights if TRUE weigths for boundary estimation are only computed for first 10 percent of samples to speed up computation
+#' @param deleteShapes shapefile containing areas without observations
+#' @param numChains number of chains of SEM algorithm
+#' @param numThreads number of threads to be used (only applicable if more than one chains)
+#' @export
+dshape3dProp <- function(data, burnin=2, samples=5,
+                         shapefile, gridsize=200, boundary = FALSE,
+                         deleteShapes = NULL, fastWeights = TRUE,
+                         numChains=1, numThreads=1){
+  ###########################################################
+  ##### get polygon shape coordinates from data #####
+  ###########################################################
+  
+  # adaptive not implemented
+  adaptive <- FALSE
+  
+  # order data
+  data <- data[order(data[,5]),]
+  
+  pol.x <- list()
+  pol.y <- list()
+  for (i in 1:length(shapefile@polygons)) {
+    pol.x[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,1]
+    pol.y[[i]] <- shapefile@polygons[[i]]@Polygons[[1]]@coords[,2]
+  }
+  
+  npointsAll <- data[ ,c(4,5)] # number of observations for complete observations and third variable
+  npoints <- data[ ,c(3,5)] # number of observations in area for partial population and third variable
+  
+  if (length(gridsize) == 1) { gridsize = c(gridsize, gridsize) }
+  #Create grid - sparr package requires identical grid length on both axis:
+  gridx=seq(shapefile@bbox[1,1],shapefile@bbox[1,2],length=gridsize[1])
+  gridy=seq(shapefile@bbox[2,1],shapefile@bbox[2,2],length=gridsize[2])
+  grid <- as.matrix(expand.grid(gridx,gridy))
+  
+  # calculate weights for for complete observations and each unique observation of third variable
+  dataAllWeight <- sapply(unique(data[,5]), function(x){
+    d <- data[data[,5]==x,]
+    nrow(d)*d[,4]/sum(d[,4])
+  })
+  
+  # calculate weights for for partial population and each unique observation of third variable
+  dataWeight <- sapply(unique(data[,5]), function(x){
+    d <- data[data[,5]==x,]
+    nrow(d)*d[,3]/sum(d[,3])
+  })
+  
+  #Pilot Estimation 
+  # 3 dimensional Kernel Density Estimation
+  # added new weight variable and adjusted x, H, gridsize, xmin and xmax for third dimension
+  MestimatesAll <- ks::kde(x=data[,c(1,2,5)],H = 10 * diag(c(diff(shapefile@bbox[1,])/sqrt(length(shapefile@polygons)),
+                                                             c(diff(shapefile@bbox[2,])/sqrt(length(shapefile@polygons))),
+                                                             c(diff(c(min(data[,5]),max(data[,5]))))))^2,
+                           gridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                           xmin=c(min(gridx),min(gridy),min(data[,5])),
+                           xmax=c(max(gridx),max(gridy),max(data[,5])),
+                           w=unlist(as.vector(dataAllWeight)))
+  
+  Mestimates <- ks::kde(x=data[,c(1,2,5)],H = 10 * diag(c(diff(shapefile@bbox[1,])/sqrt(length(shapefile@polygons)),
+                                                          c(diff(shapefile@bbox[2,])/sqrt(length(shapefile@polygons))),
+                                                          c(diff(c(min(data[,5]),max(data[,5]))))))^2,
+                        gridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                        xmin=c(min(gridx),min(gridy),min(data[,5])),
+                        xmax=c(max(gridx),max(gridy),max(data[,5])),
+                        w=unlist(as.vector(dataWeight)))
+  
+  #Result matrices
+  resultDensity=array(dim=c(numChains, burnin+samples,length(gridx),length(gridy),length(unique(npointsAll[,2]))))
+  resultX=array(dim=c(numChains,samples+burnin,sum(npoints[,1]),3))
+  proportionArray=array(dim=c(numChains, burnin+samples,length(gridx),length(gridy),length(unique(npointsAll[,2]))))
+  
+  printTiming("Calc selectionGrid", {
+    selectionGrid <- lapply(1:nrow(unique(data[,1:2])),function(i){
+      lapply(1:length(shapefile@polygons[[i]]@Polygons), function(j){
+        if(shapefile@polygons[[i]]@Polygons[[j]]@hole == FALSE){
+          which(point.in.polygon(grid[,1],grid[,2],shapefile@polygons[[i]]@Polygons[[j]]@coords[,1],
+                                 shapefile@polygons[[i]]@Polygons[[j]]@coords[,2])==1)
+        }
+      }) %>% unlist
+    })
+  })
+  
+  printTiming("Calc selectionGridHole", {
+    selectionGridHole <- lapply(1:nrow(unique(data[,1:2])),function(i){
+      lapply(1:length(shapefile@polygons[[i]]@Polygons), function(j){
+        if(shapefile@polygons[[i]]@Polygons[[j]]@hole == TRUE){
+          which(point.in.polygon(grid[,1],grid[,2],
+                                 shapefile@polygons[[i]]@Polygons[[j]]@coords[,1],
+                                 shapefile@polygons[[i]]@Polygons[[j]]@coords[,2])==1)
+        }
+      }) %>% unlist
+    })
+  })
+  
+  printTiming("Recalc selectionGrid", {
+    selectionGrid <- lapply(1:length(selectionGrid), function(x) setdiff(selectionGrid[[x]],selectionGridHole[[x]]))
+    outside <- grid[-unlist(selectionGrid), ]
+  })
+  
+  printTiming("Consider DeleteShapes", {
+    unselectionGrid = NULL
+    unselectionGridHoles = NULL
+    if(!is.null(deleteShapes)){
+      unselectionGrid <- lapply(1:length(deleteShapes@polygons),function(i){
+        lapply(1:length(deleteShapes@polygons[[i]]@Polygons), function(j){
+          if(deleteShapes@polygons[[i]]@Polygons[[j]]@hole == FALSE){
+            which(point.in.polygon(grid[,1],grid[,2],
+                                   deleteShapes@polygons[[i]]@Polygons[[j]]@coords[,1],
+                                   deleteShapes@polygons[[i]]@Polygons[[j]]@coords[,2])==1)
+          }
+        }
+        ) %>% unlist
+      }) %>% unlist
+      unselectionGridHoles <- lapply(1:length(deleteShapes@polygons),function(i){
+        lapply(1:length(deleteShapes@polygons[[i]]@Polygons), function(j){
+          if(deleteShapes@polygons[[i]]@Polygons[[j]]@hole == TRUE){
+            which(point.in.polygon(grid[,1],grid[,2],
+                                   deleteShapes@polygons[[i]]@Polygons[[j]]@coords[,1],
+                                   deleteShapes@polygons[[i]]@Polygons[[j]]@coords[,2])==1)
+          }
+        }
+        ) %>% unlist
+      }) %>% unlist
+      unselectionGrid <- setdiff(unselectionGrid, unselectionGridHoles)
+      outside <- grid[-setdiff(unlist(selectionGrid), unselectionGrid), ]
+      selectionGrid <- lapply(selectionGrid, function(x) setdiff(x,unselectionGrid))
+    }
+  })
+  
+  inside <- grid[unlist(selectionGrid), ]  #SEM Estimator
+  
+  #if no match in grid for shape -> get nearest match (possible reason grid too small..)
+  for(j in which(sapply(selectionGrid,length)==0)){
+    selectionGrid[[j]] <-  which.min(colSums((t(grid) - as.numeric(data[j,c(1,2)]))^2))
+  }
+  
+  rm(selectionGridHole, pol.x, pol.y); gc()
+  
+  # decide wether to use threads or not
+  numCoresToUse = min(numThreads, numChains, detectCores())
+  if (numCoresToUse == 1)
+  {
+    for(c in seq(1,numChains))
+    {
+      res <- dshape3dProp_calcChain(c,NA,MestimatesAll,Mestimates,burnin,
+                                    samples,grid,gridx,gridy,selectionGrid,
+                                    shapefile,npointsAll,
+                                    npoints,adaptive,boundary,fastWeights,
+                                    data,inside,outside,deleteShapes,
+                                    unselectionGrid)
+      
+      resultDensity[c,,,,]   <- res$resultDensity
+      if (isOutputlevelHigh()) { resultX[c,,,]         <- res$resultX }
+      proportionArray[c,,,,] <- res$proportionArray
+      Mestimates            <- res$Mestimates
+      
+      rm(res); gc()
+    }
+  } else
+  {
+    cl <- makeCluster(numCoresToUse , type="PSOCK", outfile="")
+    # export necessary functions and libraries
+    clusterEvalQ(cl, { library(ks); library(mvtnorm); library(dplyr); library(fastmatch); library(Kernelheaping) })
+    
+    # generate random filename which is used for result files for each thread
+    baseFilename = paste(tempdir(), "/", runif(1, min=1000000, max=9999999), "_", sep="")
+    # start parallel execution
+    parLapply(cl, 1:numChains, dshape3dProp_calcChain, baseFilename,
+              MestimatesAll, Mestimates, burnin, samples, grid,
+              gridx, gridy, selectionGrid, shapefile, npointsAll,
+              npoints, adaptive,boundary,fastWeights, data, inside,
+              outside, deleteShapes, unselectionGrid)
+    
+    stopCluster(cl)
+    rm(cl)
+    gc()
+    
+    # copy results to output data structures
+    for(c in seq(1,numChains))
+    {
+      ret <- NULL
+      load(paste(baseFilename, c, sep = ""))
+      
+      resultDensity[c,,,,]   <- ret$resultDensity
+      if (isOutputlevelHigh()) { resultX[c,,,]         <- ret$resultX }
+      proportionArray[c,,,,] <- ret$proportionArray
+      Mestimates            <- ret$Mestimates
+      
+      # resultDensity[c,,,]   <- clusterResults[[c]]$resultDensity
+      # resultX[c,,,]         <- clusterResults[[c]]$resultX
+      # proportionArray[c,,,] <- clusterResults[[c]]$proportionArray
+      # Mestimates            <- clusterResults[[c]]$Mestimates
+      
+      rm(ret); gc()
+    }
+  }
+  
+  indexGridColumns <- c( length( dim(resultDensity[,-c(1:burnin),,,]) ) -2,
+                         length( dim(resultDensity[,-c(1:burnin),,,]) ) -1,
+                         length( dim(resultDensity[,-c(1:burnin),,,]) ))
+  Mestimates$estimate=apply(resultDensity[,-c(1:burnin),,,],indexGridColumns,mean)
+  est<-list(Mestimates=Mestimates,resultDensity=resultDensity,
+            data=data, gridx=gridx, gridy=gridy, shapefile=shapefile,
+            burnin=burnin, samples=samples, adaptive=adaptive, numChains=numChains,
+            proportions = apply(proportionArray[,-c(1:burnin),,,],indexGridColumns,mean))
+  if (isOutputlevelHigh()) { est[["resultX"]]=resultX }
+  class(est) <- "3dshape"
+  return(est)
+}
+
+
+dshape3dProp_calcChain <- function(chain,
+                                   saveAsBaseFileName,
+                                   MestimatesAll,
+                                   Mestimates,
+                                   burnin,
+                                   samples,
+                                   grid,
+                                   gridx,
+                                   gridy,
+                                   selectionGrid,
+                                   shapefile,
+                                   npointsAll,
+                                   npoints,
+                                   adaptive,
+                                   boundary,
+                                   fastWeights,
+                                   data,
+                                   inside,
+                                   outside,
+                                   deleteShapes,
+                                   unselectionGrid)
+{
+  printInfo("Start Chain ", chain)
+  # return object; if saveAsBaseFileName is != NA it will be saved as RData File instead
+  ret = list()
+  ret$resultDensity=array(dim=c(burnin+samples,length(gridx),length(gridy),length(unique(npointsAll[,2]))))
+  ret$resultX=array(dim=c(samples+burnin,sum(npoints[,1]),3))
+  ret$proportionArray=array(dim=c(burnin+samples,length(gridx),length(gridy),length(unique(npointsAll[,2]))))
+  
+  #pre calculations for faster match usage (fmatch)
+  Max_2SingleID = max(grid)
+  inside_2SingleID = apply(inside, 1, function(x) { x[1]*Max_2SingleID + x[2] } )
+  
+  for(j in 1:(burnin+samples)){
+    
+    printInfo("Start Iteration: ",j," of ", burnin+samples," in chain ", chain)
+    
+    newAll=NULL
+    new=NULL
+    
+    # added a new loop:
+    # in dshapebivrProp() sampling is done seperately for each area (i) from the 2d density
+    # in dshapebivrProp3d() sampling is done seperately for each time period (k) and each area (i) from the 3d density
+    
+    for(k in 1:length(unique(npointsAll[,2]))){
+      
+      print(paste0("... ",k," / ",length(unique(npointsAll[,2]))))
+      
+      # subset data and npoints, keeping only observation k of third variable
+      # do steps similar as in 2d case and later bind together sampled geocoordinates for each time period 
+      datak <- data[data[,5]==unique(data[,5])[k],]
+      
+      npointsAllk <- npointsAll[npointsAll[,2]==unique(npointsAll[,2])[k],]
+      npointsk <- npoints[npoints[,2]==unique(npoints[,2])[k],]
+      
+      newAllk=matrix(nrow=sum(npointsAllk[,1]), ncol=3)
+      newAllCnt=1
+      newk=matrix(nrow=sum(npointsk[,1]), ncol=3)
+      newCnt=1
+      
+      printTiming("Calc Probabilities", {
+        for(i in 1:length(selectionGrid)){
+          # probs for observation k of third variable from 3d density
+          probsAll=MestimatesAll$estimate[cbind(match(grid[selectionGrid[[i]],1],
+                                                      MestimatesAll$eval.points[[1]]),
+                                                match(grid[selectionGrid[[i]],2],
+                                                      MestimatesAll$eval.points[[2]]),
+                                                match(MestimatesAll$eval.points[[3]][k],
+                                                      MestimatesAll$eval.points[[3]]))]+1E-16
+          probs=Mestimates$estimate[cbind(match(grid[selectionGrid[[i]],1],
+                                                Mestimates$eval.points[[1]]),
+                                          match(grid[selectionGrid[[i]],2],
+                                                Mestimates$eval.points[[2]]),
+                                          match(Mestimates$eval.points[[3]][k],
+                                                Mestimates$eval.points[[3]]))]+1E-16
+          probsAll = probsAll/sum(probsAll)
+          probs = probs/sum(probs)
+          probsPROP=(probs/probsAll)*(sum(datak[i,3])/sum(datak[i,4]))
+          points=matrix(ncol=2,grid[selectionGrid[[i]],])
+          points=cbind(points,as.integer(unique(data[,5])[k]))
+          if(length(selectionGrid[[i]])==0){points <- matrix(ncol=2,shapefile@polygons[[i]]@labpt)
+          probs=1
+          probsAll=1}
+          if(npointsAllk[,1][i]>0){
+            sampleAll=sample(1:nrow(points),size=max(0,npointsAllk[,1][i],na.rm=T),replace=T,prob=probsAll)
+            newAllk[newAllCnt:(newAllCnt+npointsAllk[,1][i]-1), ] = points[sampleAll,]
+            newAllCnt = newAllCnt+npointsAllk[,1][i]
+          }
+          if(npointsk[,1][i]>0){
+            if (length(sampleAll) == 1) {
+              sampleProp = sampleAll
+            } else {
+              sampleProp <- sample(sampleAll,
+                                   size = max(0, npointsk[,1][i], na.rm = T), prob = probsPROP[sampleAll])
+            }
+            newk[newCnt:(newCnt+npointsk[,1][i]-1), ] = points[sampleProp,]
+            newCnt = newCnt+npointsk[,1][i]
+          }
+        }
+      }) # end of i
+      
+      
+      newAllk <- data.frame(newAllk) %>% group_by_all() %>% count %>% distinct %>% as.matrix() # slightly faster but requires dplyr
+      # newAllk <- as.matrix(ddply(data.frame(newAllk),.(X1,X2,X3),nrow)) # uses plyr
+      
+      newAll <- rbind(newAll,newAllk)
+      new <- rbind(new,newk)
+      
+    }
+    
+    #recompute H
+    printTiming("Recompute H", {
+      if(adaptive==FALSE){
+        H <- ks::Hpi(x = new, binned=TRUE) * 2
+      }
+      if(adaptive==TRUE){
+        H <- ks::Hpi(x = new, binned=TRUE)
+        # adjusted for 3rd dimension
+        H <- sqrt(sqrt(H[1,1]*H[2,2]*H[3,3]))
+      }
+    })
+    
+    wAll = newAll[,4]
+    w = rep(1, nrow(new))
+    
+    if(boundary == TRUE){
+      printTiming("Calc Weights", {
+        if(fastWeights == FALSE || j <= ceiling(0.1*(burnin+samples))){
+          weights <- calcWeights_fast( inside  = inside ,
+                                       outside = outside,
+                                       gridx   = gridx  ,
+                                       gridy   = gridy  ,
+                                       H       = H[1:2,1:2])
+          
+        }
+      })
+      
+      printTiming("Match Weights", {
+        new_2SingleID    = apply(new, 1, function(x) { x[1]*Max_2SingleID + x[2] } )
+        newAll_2SingleID = apply(newAll, 1, function(x) { x[1]*Max_2SingleID + x[2] } )
+        w <- weights[ fmatch(new_2SingleID, inside_2SingleID, nomatch = 1) ]
+        wAll <- weights[ fmatch(newAll_2SingleID, inside_2SingleID, nomatch = 1) ] * wAll
+      })
+    }
+    #recompute density
+    printTiming("Recompute Density", {
+      if(adaptive==FALSE){
+        # added new weight variable and adjusted x, H, gridsize, xmin and xmax for third dimension
+        MestimatesAll <- kde(newAll[,1:3], H = H,
+                             gridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                             bgridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                             xmin=c(min(gridx),min(gridy),min(unique(data[,5]))),
+                             xmax=c(max(gridx),max(gridy),max(unique(data[,5]))),
+                             binned=TRUE, 
+                             w = wAll/mean(wAll))
+        
+        Mestimates <- ks::kde(x=new, H=H,
+                              gridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                              bgridsize=c(length(gridx),length(gridy),length(unique(data[,5]))),
+                              xmin=c(min(gridx),min(gridy),min(unique(data[,5]))),
+                              xmax=c(max(gridx),max(gridy),max(unique(data[,5]))),
+                              binned=TRUE, w = w/mean(w))
+      }
+      if(adaptive==TRUE){
+        counts <- plyr::count(new)
+        MestimatesAd <- sparr::bivariate.density(data=counts[,c(1:2)],pilotH=H,res=length(gridx),xrange=range(gridx),
+                                                 yrange=range(gridy),adaptive=TRUE,
+                                                 comment=FALSE, counts=counts[,4])
+        Mestimates$estimate=MestimatesAd$Zm
+      }
+      #weird behaviour of ks::kde returning negative densities (probably due to numeric problems)
+      Mestimates$estimate[Mestimates$estimate < 0] <- 0
+      MestimatesAll$estimate[MestimatesAll$estimate < 0] <- 0
+      
+    })
+    
+    printTiming("Delete Shapes", {
+      if(!is.null(deleteShapes)){
+        for(k in 1:length(MestimatesAll$eval.points[[3]])){
+          Mestimates$estimate[,,k][-setdiff(unlist(selectionGrid), unselectionGrid)] = 0
+          MestimatesAll$estimate[,,k][-setdiff(unlist(selectionGrid), unselectionGrid)] = 0
+        }
+      } else{
+        for(k in 1:length(MestimatesAll$eval.points[[3]])){
+          Mestimates$estimate[,,k][-(unlist(selectionGrid))] = 0
+          MestimatesAll$estimate[,,k][-(unlist(selectionGrid))] = 0
+        }
+      }
+    })
+    
+    printTiming("Match Density", {
+      # adjusted for 3rd dimension
+      densityAll <- array(NA,dim(MestimatesAll$estimate))
+      densityPart <- array(NA,dim(Mestimates$estimate))
+      for(k in 1:length(MestimatesAll$eval.points[[3]])){
+        densityAll[cbind(match(grid[selectionGrid %>% unlist ,1],MestimatesAll$eval.points[[1]]),
+                         match(grid[selectionGrid %>% unlist,2],MestimatesAll$eval.points[[2]]),
+                         match(MestimatesAll$eval.points[[3]][k],MestimatesAll$eval.points[[3]]))] =
+          MestimatesAll$estimate[cbind(match(grid[selectionGrid %>% unlist ,1],MestimatesAll$eval.points[[1]]),
+                                       match(grid[selectionGrid %>% unlist,2],MestimatesAll$eval.points[[2]]),
+                                       match(MestimatesAll$eval.points[[3]][k],MestimatesAll$eval.points[[3]]))]
+        densityPart[cbind(match(grid[selectionGrid %>% unlist ,1],MestimatesAll$eval.points[[1]]),
+                          match(grid[selectionGrid %>% unlist,2],MestimatesAll$eval.points[[2]]),
+                          match(MestimatesAll$eval.points[[3]][k],MestimatesAll$eval.points[[3]]))] =
+          Mestimates$estimate[cbind(match(grid[selectionGrid %>% unlist ,1],MestimatesAll$eval.points[[1]]),
+                                    match(grid[selectionGrid %>% unlist,2],MestimatesAll$eval.points[[2]]),
+                                    match(MestimatesAll$eval.points[[3]][k],MestimatesAll$eval.points[[3]]))]
+      }
+    })
+    
+    printTiming("Assignments", {
+      # adjusted for 3rd dimension
+      proportion <- array(NA,dim(Mestimates$estimate))
+      for(k in 1:length(MestimatesAll$eval.points[[3]])){
+        densityPart[,,k] <- densityPart[,,k]/sum(densityPart[,,k], na.rm=TRUE)
+        densityAll[,,k] <- densityAll[,,k]/sum(densityAll[,,k], na.rm=TRUE)
+        densityAll[,,k] <- densityAll[,,k]+1E-96
+        proportion[,,k] <- (densityPart[,,k]/densityAll[,,k]) * (sum(data[data[,5]==unique(data[,5])[k],][,3])/sum(data[data[,5]==unique(data[,5])[k],][,4]))
+      }
+      proportion[proportion<0]=0
+      proportion[proportion>1]=1
+      
+      Mestimates$estimate[is.na(Mestimates$estimate)]=1E-96
+      ret$resultDensity[j,,,] <- Mestimates$estimate
+      ret$proportionArray[j,,,] <- proportion
+      ret$resultX[j,,] <- new
+    })
+    printInfo("Iteration: ",j," of ", burnin+samples," in chain ", chain)
+  }
+  ret$Mestimates = Mestimates
+  
+  if (is.na(saveAsBaseFileName))
+  {
+    return( ret )
+  }
+  else
+  {
+    save(ret, file = paste(saveAsBaseFileName, chain, sep=""), envir = environment())
+    return( NA )
+  }
+}
+
 
 #' Transfer observations to other shape
 #' @param Mestimates Estimation object created by functions dshapebivr and dbivr
