@@ -18,7 +18,7 @@ dshape3dProp(
 )
 }
 \arguments{
-\item{data}{data.frame with 5 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations and third variable.}
+\item{data}{data.frame with 5 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations and third variable (numeric).}
 
 \item{burnin}{burn-in sample size}
 

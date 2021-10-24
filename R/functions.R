@@ -1572,7 +1572,7 @@ dshapebivrProp_calcChain <- function(chain,
 }
 
 #' 3d Kernel density estimation for data classified in polygons or shapes
-#' @param data data.frame with 5 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations and third variable.
+#' @param data data.frame with 5 columns: x-coordinate, y-coordinate (i.e. center of polygon) and number of observations in area for partial population and number of observations for complete observations and third variable (numeric).
 #' @param burnin burn-in sample size
 #' @param samples sampling iteration size
 #' @param shapefile shapefile with number of polygons equal to nrow(data) / length(unique(data[,5]))
